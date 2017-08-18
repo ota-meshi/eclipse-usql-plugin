@@ -1,0 +1,16 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Eclipse uroboroSQL Plugin
+Bundle-SymbolicName: jp.co.future.eclipse.uroborosql.plugin;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin
+Bundle-Vendor: Future Architect, Inc.
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ org.eclipse.datatools.sqltools.sqleditor,
+ org.junit
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: lib/ognl-3.2.3.jar,
+ .,
+ icons/
