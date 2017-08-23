@@ -8,7 +8,8 @@ Bundle-Vendor: Future Architect, Inc.
 Require-Bundle: org.eclipse.ui,
  org.eclipse.core.runtime,
  org.eclipse.datatools.sqltools.sqleditor,
- org.junit
+ org.junit,
+ org.eclipse.core.resources
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: lib/ognl-3.2.3.jar,

@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.eclipse.datatools.sqltools.sqleditor.internal.SQLEditorPlugin;
 import org.eclipse.jface.text.ITextViewer;
 import org.eclipse.jface.text.contentassist.ICompletionProposal;
 import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
+import org.eclipse.ui.IEditorPart;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.MCommentTypes;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
@@ -28,6 +30,11 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 
 	@Override
 	public ICompletionProposal[] computeCompletionProposals(ITextViewer viewer, int offset) {
+
+
+		IEditorPart part = SQLEditorPlugin.getActiveEditor();
+		part.
+
 
 		List<ICompletionProposal> list = new ArrayList<>(computeUroboroSQLCompletionProposals(viewer, offset));
 		if (original != null) {
@@ -92,5 +99,11 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 			return null;
 		}
 		return original.getContextInformationValidator();
+	}
+
+	private IProject getProect(ITextEditor editor) {
+		IFileEditorInput editorInput = (IFileEditorInput) editor.getEditorInput();
+		IFile file = editorInput.getFile();
+		return file.getProject();
 	}
 }
