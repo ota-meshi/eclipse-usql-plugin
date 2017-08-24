@@ -7,13 +7,14 @@ import java.util.List;
 
 import org.eclipse.jface.text.contentassist.ICompletionProposal;
 
+import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQLUtils;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.FmtContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.PartContentAssistProcessor;
 
 public class MCommentTypes {
-	private static final IMCommentType SYNTAX = commentStart -> {
+	private static final IMCommentType SYNTAX = (commentStart, config) -> {
 		List<ICompletionProposal> result = new ArrayList<>();
 		for (PartContentAssistProcessor syntaxProcessor : UroboroSQLUtils.SYNTAX_PROCESSORS) {
 			syntaxProcessor.computeCompletionProposal(commentStart).ifPresent(result::add);
@@ -21,26 +22,26 @@ public class MCommentTypes {
 		return result;
 	};
 
-	private static final IMCommentType SCRIPT = commentStart -> {
+	private static final IMCommentType SCRIPT = (commentStart, config) -> {
 		if (!UroboroSQLUtils.withinScript(commentStart)) {
 			return Collections.emptyList();
 		}
 		DocumentPoint scriptStart = UroboroSQLUtils.getScriptStartPoint(commentStart.getDocument());
 
 		return UroboroSQLUtils
-				.getScriptAssistProcessors(commentStart.getDocument()).computeCompletionProposals(scriptStart);
+				.getScriptAssistProcessors(commentStart.getDocument(), config).computeCompletionProposals(scriptStart);
 	};
-	private static final IMCommentType VARIABLE = commentStart -> {
+	private static final IMCommentType VARIABLE = (commentStart, config) -> {
 		List<ICompletionProposal> result = new ArrayList<>();
 		for (PartContentAssistProcessor varriableProcessor : UroboroSQLUtils
-				.getAllVariableAssistProcessors(commentStart.getDocument())) {
+				.getAllVariableAssistProcessors(commentStart.getDocument(), config)) {
 			varriableProcessor.computeCompletionProposal(commentStart).ifPresent(result::add);
 		}
 		return result;
 
 	};
-	private static final IMCommentType IDENTIFIER = commentStart -> {
-		String text = "/* " + UroboroSQLUtils.getSqlId() + " */";
+	private static final IMCommentType IDENTIFIER = (commentStart, config) -> {
+		String text = "/* " + config.getSqlId() + " */";
 		FmtContentAssistProcessor assistProcessor = new FmtContentAssistProcessor(text, "uroboroSQL SQL ID");
 
 		return assistProcessor.computeCompletionProposal(commentStart).map(Arrays::asList)
@@ -49,10 +50,11 @@ public class MCommentTypes {
 
 	private static final List<IMCommentType> TYPES = Arrays.asList(SYNTAX, SCRIPT, VARIABLE, IDENTIFIER);
 
-	public static List<ICompletionProposal> computeCompletionProposals(DocumentPoint commentStart) {
+	public static List<ICompletionProposal> computeCompletionProposals(DocumentPoint commentStart,
+			PluginConfig config) {
 		List<ICompletionProposal> result = new ArrayList<>();
 		for (IMCommentType assistType : TYPES) {
-			result.addAll(assistType.computeCompletionProposals(commentStart));
+			result.addAll(assistType.computeCompletionProposals(commentStart, config));
 		}
 		return result;
 	}
