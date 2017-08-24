@@ -12,6 +12,7 @@ import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
 import org.eclipse.ui.IEditorPart;
 
+import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.MCommentTypes;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
@@ -31,12 +32,10 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 	@Override
 	public ICompletionProposal[] computeCompletionProposals(ITextViewer viewer, int offset) {
 
+		IEditorPart editor = SQLEditorPlugin.getActiveEditor();
+		PluginConfig config = PluginConfig.load(editor);
 
-		IEditorPart part = SQLEditorPlugin.getActiveEditor();
-		part.
-
-
-		List<ICompletionProposal> list = new ArrayList<>(computeUroboroSQLCompletionProposals(viewer, offset));
+		List<ICompletionProposal> list = new ArrayList<>(computeUroboroSQLCompletionProposals(viewer, offset, config));
 		if (original != null) {
 			Collections.addAll(list, original.computeCompletionProposals(viewer, offset));
 		}
@@ -44,12 +43,13 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 		return list.toArray(new ICompletionProposal[list.size()]);
 	}
 
-	private List<ICompletionProposal> computeUroboroSQLCompletionProposals(ITextViewer viewer, int offset) {
+	private List<ICompletionProposal> computeUroboroSQLCompletionProposals(ITextViewer viewer, int offset,
+			PluginConfig config) {
 		try {
 			Document document = new Document(viewer.getDocument(), offset);
 			Token userOffsetToken = document.getUserOffsetToken();
 			if (userOffsetToken.getType() == TokenType.M_COMMENT) {
-				return MCommentTypes.computeCompletionProposals(userOffsetToken.toDocumentPoint());
+				return MCommentTypes.computeCompletionProposals(userOffsetToken.toDocumentPoint(), config);
 			}
 			int a;
 			// TODO
@@ -99,11 +99,5 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 			return null;
 		}
 		return original.getContextInformationValidator();
-	}
-
-	private IProject getProect(ITextEditor editor) {
-		IFileEditorInput editorInput = (IFileEditorInput) editor.getEditorInput();
-		IFile file = editorInput.getFile();
-		return file.getProject();
 	}
 }

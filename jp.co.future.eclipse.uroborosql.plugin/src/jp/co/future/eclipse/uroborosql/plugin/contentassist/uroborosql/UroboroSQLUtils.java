@@ -1,5 +1,6 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 import org.eclipse.swt.graphics.Image;
 
 import jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin;
+import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentScanner;
@@ -151,14 +153,19 @@ public class UroboroSQLUtils {
 		return false;
 	}
 
-	public static ListContentAssistProcessor getScriptAssistProcessors(Document document) {
+	public static ListContentAssistProcessor getScriptAssistProcessors(Document document, PluginConfig config) {
 		TreeContentAssistProcessor contentAssistProcessor = new TreeContentAssistProcessor();
 
+		//string functions
 		contentAssistProcessor.addAll(STR_FUNCTION_METHODS, "uroboroSQL String Function script");
+
+		//定数
+		contentAssistProcessor.addAll(config.getConsts().keySet(), "uroboroSQL const value\nsetting const value.");
+
 		//すでに利用しているスクリプト
 		contentAssistProcessor.addAll(document.getTokens().stream()
 				.filter(t -> t.getType() == TokenType.M_COMMENT)
-				.map(t -> getScripts(t, document))
+				.map(t -> getScripts(t, document, config))
 				.flatMap(Set::stream)
 				.collect(Collectors.toSet()), "uroboroSQL script\nused script.");
 
@@ -172,22 +179,33 @@ public class UroboroSQLUtils {
 		return contentAssistProcessor;
 	}
 
-	public static List<PartContentAssistProcessor> getAllVariableAssistProcessors(Document document) {
+	public static List<PartContentAssistProcessor> getAllVariableAssistProcessors(Document document,
+			PluginConfig config) {
+		List<PartContentAssistProcessor> variableAssistProcessors = new ArrayList<>();
+
+		//定数
+		config.getConsts().entrySet().stream()
+				.sorted(Comparator.comparing(Map.Entry::getKey))
+				.map(e -> new FmtContentAssistProcessor("/*#" + e.getKey() + "*/",
+						"/*#" + e.getKey() + "*/" + toLiteral(e.getValue()),
+						"/*#" + e.getKey() + "*/" + toLiteral(e.getValue()),
+						"uroboroSQL const value\nsetting const value."))
+				.forEach(variableAssistProcessors::add);
 
 		//すでに利用している変数
 		Variables variables = document.getTokens().stream()
 				.filter(t -> t.getType() == TokenType.M_COMMENT)
-				.map(t -> getVariables(t, document))
+				.map(t -> getVariables(t, document, config))
 				.collect(Collectors.reducing(Variables::putAll)).orElseGet(Variables::new);
 
-		List<PartContentAssistProcessor> variableAssistProcessors = variables.variables().stream()
+		variables.variables().stream()
 				.filter(e -> !STR_FUNCTION_METHODS.contains(e.getVariableName()))
 				.sorted(Comparator.comparing(Variable::getVariableName))
 				.map(e -> new FmtContentAssistProcessor("/*" + e.getVariableName() + "*/",
 						e.toCompletionProposal(),
 						e.toCompletionProposal(),
 						"uroboroSQL variable\nused variable name."))
-				.collect(Collectors.toList());
+				.forEach(variableAssistProcessors::add);
 
 		//SQLの中から可能性のある変数名
 		Set<String> sqlTokenVariables = new HashSet<>();
@@ -203,6 +221,16 @@ public class UroboroSQLUtils {
 
 		variableAssistProcessors.addAll(sqlTokenVariableAssistProcessors);
 		return variableAssistProcessors;
+	}
+
+	private static String toLiteral(Object value) {
+		if (value == null) {
+			return "''";
+		}
+		if (value instanceof Number) {
+			return value.toString();
+		}
+		return "'" + value + "'";
 	}
 
 	public static String toCamel(final String original) {
@@ -250,14 +278,8 @@ public class UroboroSQLUtils {
 		}
 	}
 
-	public static String getSqlId() {
-		int _a;
-		// TODO 設定化 "_SQL_ID_"
-		return "_SQL_IDENTIFIER_";
-	}
-
-	private static Variables getVariables(Token commentToken, Document document) {
-		ScriptVariables scriptVariables = getScriptVariables(commentToken, document);
+	private static Variables getVariables(Token commentToken, Document document, PluginConfig config) {
+		ScriptVariables scriptVariables = getScriptVariables(commentToken, document, config);
 
 		if (scriptVariables.type == ScriptType.VALIABLE) {
 			String sqlValue = getVariableSqlValue(commentToken);
@@ -267,11 +289,11 @@ public class UroboroSQLUtils {
 		}
 	}
 
-	private static Set<String> getScripts(Token commentToken, Document document) {
-		return getScriptVariables(commentToken, document).variableNames;
+	private static Set<String> getScripts(Token commentToken, Document document, PluginConfig config) {
+		return getScriptVariables(commentToken, document, config).variableNames;
 	}
 
-	private static ScriptVariables getScriptVariables(Token commentToken, Document document) {
+	private static ScriptVariables getScriptVariables(Token commentToken, Document document, PluginConfig config) {
 		if (commentToken.equals(document.getUserOffsetToken())) {
 			return new ScriptVariables(Collections.emptySet(), ScriptType.UNKNOWN);
 		}
@@ -288,7 +310,7 @@ public class UroboroSQLUtils {
 			if (!isTargetComment(comment)) {
 				return new ScriptVariables(Collections.emptySet(), ScriptType.VALIABLE);
 			}
-			if (SYNTAXES.contains(comment) || getSqlId().equals(comment)) {
+			if (SYNTAXES.contains(comment) || config.getSqlId().equals(comment)) {
 				return new ScriptVariables(Collections.emptySet(), ScriptType.VALIABLE);
 			}
 
