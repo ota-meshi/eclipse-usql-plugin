@@ -10,8 +10,8 @@ import org.eclipse.jface.text.contentassist.ICompletionProposal;
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQLUtils;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.FmtContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.PartContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
 
 public class MCommentTypes {
 	private static final IMCommentType SYNTAX = (commentStart, config) -> {
@@ -42,7 +42,7 @@ public class MCommentTypes {
 	};
 	private static final IMCommentType IDENTIFIER = (commentStart, config) -> {
 		String text = "/* " + config.getSqlId() + " */";
-		FmtContentAssistProcessor assistProcessor = new FmtContentAssistProcessor(text, "uroboroSQL SQL ID");
+		TokenContentAssistProcessor assistProcessor = new TokenContentAssistProcessor(text, "SQL ID token");
 
 		return assistProcessor.computeCompletionProposal(commentStart).map(Arrays::asList)
 				.orElse(Collections.emptyList());

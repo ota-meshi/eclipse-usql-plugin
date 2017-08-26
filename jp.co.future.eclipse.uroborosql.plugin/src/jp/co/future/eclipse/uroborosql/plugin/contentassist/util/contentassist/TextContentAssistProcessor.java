@@ -1,6 +1,7 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist;
 
-import java.util.function.Predicate;
+import java.util.OptionalInt;
+import java.util.function.Function;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
@@ -20,11 +21,7 @@ public class TextContentAssistProcessor extends TestContentAssistProcessor {
 		super(toHitTest(test), replacementLines, cursorPosition, displayString, additionalProposalInfo);
 	}
 
-	private static Predicate<DocumentPoint> toHitTest(String test) {
-		return p -> test(test, p);
-	}
-
-	private static boolean test(String test, DocumentPoint point) {
-		return test.startsWith(point.getRangeText());
+	private static Function<DocumentPoint, OptionalInt> toHitTest(String test) {
+		return p -> HitTester.hit(p.getRangeText(), test);
 	}
 }

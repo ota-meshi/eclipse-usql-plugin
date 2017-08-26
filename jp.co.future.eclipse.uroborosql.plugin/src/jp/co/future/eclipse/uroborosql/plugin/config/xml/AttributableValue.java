@@ -29,8 +29,8 @@ public class AttributableValue {
 	public static AttributableValue of(Element element) {
 		Map<String, String> attr = new HashMap<>(Xml.asMap(element.getAttributes()));
 		if (attr.containsKey("value")) {
-			attr.remove("value");
 			String value = Objects.toString(attr.get("value"), "");
+			attr.remove("value");
 			return new AttributableValue(value, attr);
 		} else {
 			StringBuilder sb = new StringBuilder();
@@ -56,7 +56,10 @@ public class AttributableValue {
 
 		AttributableValue value = of(element);
 		return Arrays.stream(value.value().split(","))
+				.map(s -> s.split("\n"))
+				.flatMap(Arrays::stream)
 				.map(String::trim)
+				.filter(s -> !s.isEmpty())
 				.map(s -> new AttributableValue(s, value.attr()))
 				.collect(Collectors.toList());
 	}
@@ -68,9 +71,4 @@ public class AttributableValue {
 	public Map<String, String> attr() {
 		return attr;
 	}
-
-	public AttributableValue trim() {
-		return new AttributableValue(value.trim(), attr);
-	}
-
 }

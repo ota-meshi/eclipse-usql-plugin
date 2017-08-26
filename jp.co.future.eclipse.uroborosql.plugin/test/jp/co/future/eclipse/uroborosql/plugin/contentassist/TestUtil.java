@@ -1,51 +1,23 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.AbstractList;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextViewer;
-import org.eclipse.jface.text.contentassist.CompletionProposal;
-import org.eclipse.jface.text.contentassist.ICompletionProposal;
-import org.eclipse.jface.text.contentassist.IContextInformation;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.graphics.Point;
 
 public class TestUtil {
-	public static class StringList extends AbstractList<String> {
-		private final List<String> list = new ArrayList<>();
-
-		@Override
-		public void add(int index, String element) {
-			list.add(index, element);
-		}
-
-		@Override
-		public String get(int index) {
-			return list.get(index);
-		}
-
-		@Override
-		public int size() {
-			return list.size();
-		}
-
-		@Override
-		public String toString() {
-			return stream()
-					.map(TestUtil::escape)
-					.map(s -> "\"" + s + "\"")
-					.collect(Collectors.joining(",\n", "Arrays.asList(\n", "\n)"));
-		}
-
-	}
 
 	public static ITextViewer createTextViewer(String text) {
 		IDocument doc = createDocument(text);
@@ -100,168 +72,152 @@ public class TestUtil {
 				new InvocationHandlerImpl(text));
 	}
 
-	public static List<ICompletionProposal> toEqualable(ICompletionProposal... completionProposals) {
-		return Arrays.stream(completionProposals)
-				.map(TestUtil::toEqualable)
-				.collect(Collectors.toList());
+	public static abstract class PrintList<E> extends AbstractList<E> {
+		private final List<E> list = new ArrayList<>();
+		private boolean printLines = true;
+
+		@Override
+		public void add(int index, E element) {
+			list.add(index, element);
+		}
+
+		@Override
+		public E get(int index) {
+			return list.get(index);
+		}
+
+		@Override
+		public int size() {
+			return list.size();
+		}
+
+		protected abstract String toString(E e);
+
+		@Override
+		public String toString() {
+			if (this.printLines) {
+				return stream()
+						.map(this::toString)
+						.collect(Collectors.joining(",\n", "Arrays.asList(\n", "\n)"));
+			} else {
+				return stream()
+						.map(this::toString)
+						.collect(Collectors.joining(", ", "Arrays.asList(\n", "\n)"));
+			}
+		}
+
+		public PrintList<E> setPrintLines(boolean printLines) {
+			this.printLines = printLines;
+			return this;
+		}
+
 	}
 
-	private static ICompletionProposal toEqualable(ICompletionProposal completionProposal) {
-		if (completionProposal instanceof CompletionProposal) {
-			return toEqualable((CompletionProposal) completionProposal);
+	public static abstract class PrintMap<K, V> extends AbstractMap<K, V> {
+		private final Map<K, V> map = new HashMap<>();
+		private boolean printLines = true;
+
+		public PrintMap() {
 		}
-		if (completionProposal instanceof EqualableCompletionProposal) {
-			return completionProposal;
-		}
 
-		System.out.println("cannot equalable");
-		return completionProposal;
-	}
-
-	private static class EqualableCompletionProposal implements ICompletionProposal {
-
-		private final CompletionProposal completionProposal;
-
-		private final String fDisplayString;
-		private final String fReplacementString;
-		private final int fReplacementOffset;
-		private final int fReplacementLength;
-		private final int fCursorPosition;
-		private final String fAdditionalProposalInfo;
-
-		EqualableCompletionProposal(CompletionProposal completionProposal) {
-			this.completionProposal = completionProposal;
-
-			fDisplayString = get(completionProposal, CompletionProposal.class, "fDisplayString");
-			fReplacementString = get(completionProposal, CompletionProposal.class, "fReplacementString");
-			fReplacementOffset = get(completionProposal, CompletionProposal.class, "fReplacementOffset");
-			fReplacementLength = get(completionProposal, CompletionProposal.class, "fReplacementLength");
-			fCursorPosition = get(completionProposal, CompletionProposal.class, "fCursorPosition");
-			fAdditionalProposalInfo = get(completionProposal, CompletionProposal.class, "fAdditionalProposalInfo");
+		public PrintMap(Map<K, V> map) {
+			this.map.putAll(map);
 		}
 
 		@Override
-		public Point getSelection(IDocument document) {
-			return completionProposal.getSelection(document);
+		public V put(K key, V value) {
+			return this.map.put(key, value);
 		}
 
-		@Override
-		public Image getImage() {
-			return completionProposal.getImage();
-		}
+		protected abstract String[] toString(K k, V v);
 
 		@Override
-		public String getDisplayString() {
-			return completionProposal.getDisplayString();
-		}
-
-		@Override
-		public IContextInformation getContextInformation() {
-			return completionProposal.getContextInformation();
-		}
-
-		@Override
-		public String getAdditionalProposalInfo() {
-			return completionProposal.getAdditionalProposalInfo();
-		}
-
-		@Override
-		public void apply(IDocument document) {
-			completionProposal.apply(document);
-		}
-
-		@Override
-		public int hashCode() {
-			final int prime = 31;
-			int result = 1;
-			result = prime * result + (fAdditionalProposalInfo == null ? 0 : fAdditionalProposalInfo.hashCode());
-			result = prime * result + fCursorPosition;
-			result = prime * result + (fDisplayString == null ? 0 : fDisplayString.hashCode());
-			result = prime * result + fReplacementLength;
-			result = prime * result + fReplacementOffset;
-			result = prime * result + (fReplacementString == null ? 0 : fReplacementString.hashCode());
-			return result;
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (this == obj) {
-				return true;
-			}
-			if (obj == null) {
-				return false;
-			}
-			if (obj instanceof ICompletionProposal) {
-				obj = toEqualable((ICompletionProposal) obj);
-			}
-			if (!(obj instanceof EqualableCompletionProposal)) {
-				return false;
-			}
-			EqualableCompletionProposal other = (EqualableCompletionProposal) obj;
-			if (fAdditionalProposalInfo == null) {
-				if (other.fAdditionalProposalInfo != null) {
-					return false;
-				}
-			} else if (!fAdditionalProposalInfo.equals(other.fAdditionalProposalInfo)) {
-				return false;
-			}
-			if (fCursorPosition != other.fCursorPosition) {
-				return false;
-			}
-			if (fDisplayString == null) {
-				if (other.fDisplayString != null) {
-					return false;
-				}
-			} else if (!fDisplayString.equals(other.fDisplayString)) {
-				return false;
-			}
-			if (fReplacementLength != other.fReplacementLength) {
-				return false;
-			}
-			if (fReplacementOffset != other.fReplacementOffset) {
-				return false;
-			}
-			if (fReplacementString == null) {
-				if (other.fReplacementString != null) {
-					return false;
-				}
-			} else if (!fReplacementString.equals(other.fReplacementString)) {
-				return false;
-			}
-			return true;
+		public Set<Entry<K, V>> entrySet() {
+			return map.entrySet();
 		}
 
 		@Override
 		public String toString() {
-			return "new CompletionProposal(\"" + escape(fReplacementString) + "\", " + fReplacementOffset + ", "
-					+ fReplacementLength + ", " + fCursorPosition + ", " + null + ", \"" + escape(fDisplayString)
-					+ "\", "
-					+ null
-					+ ", \"" + escape(fAdditionalProposalInfo) + "\")";
+			if (this.printLines) {
+				return map.entrySet().stream()
+						.map(e -> this.toString(e.getKey(), e.getValue()))
+						.map(s -> s[0] + ", " + s[1])
+						.collect(Collectors.joining(")\n.p(", "new M<>(", ")\n"));
+			} else {
+				return map.entrySet().stream()
+						.map(e -> this.toString(e.getKey(), e.getValue()))
+						.map(s -> s[0] + ", " + s[1])
+						.collect(Collectors.joining(").p(", "new M<>(", ")\n"));
+			}
+		}
+
+		public PrintMap<K, V> setPrintLines(boolean printLines) {
+			this.printLines = printLines;
+			return this;
 		}
 
 	}
 
-	private static ICompletionProposal toEqualable(CompletionProposal completionProposal) {
+	public static class M<K, V> extends PrintMap<K, V> {
 
-		return new EqualableCompletionProposal(completionProposal);
+		public M(K k, V v) {
+			put(k, v);
+		}
+
+		@Override
+		protected String[] toString(K k, V v) {
+			return new String[] { stringLiteral(k), stringLiteral(v) };
+		}
+
+		public M<K, V> p(K k, V v) {
+			put(k, v);
+			return this;
+		}
 	}
 
-	private static String escape(String s) {
+	public static class StringList extends PrintList<String> {
+
+		public StringList(List<String> ss) {
+			addAll(ss);
+		}
+
+		public StringList(String... ss) {
+			Collections.addAll(this, ss);
+		}
+
+		public StringList() {
+		}
+
+		@Override
+		protected String toString(String e) {
+			return stringLiteral(e);
+		}
+
+	}
+
+	public static class StringMap extends PrintMap<String, String> {
+
+		@Override
+		protected String[] toString(String k, String v) {
+			return new String[] { stringLiteral(k), stringLiteral(v) };
+		}
+
+	}
+
+	public static String stringLiteral(Object o) {
+		if (o instanceof String) {
+			return "\"" + escape((String) o) + "\"";
+		}
+		if (o == null) {
+			return "null";
+		}
+		return "\"" + o.toString() + "\"";
+	}
+
+	public static String escape(String s) {
 		return s.replace("\n", "\\n")
 				.replace("\r", "\\r")
-				.replace("\t", "\\t");
+				.replace("\t", "\\t")
+				.replace("\"", "\\\"");
 	}
-
-	@SuppressWarnings("unchecked")
-	private static <T, R> R get(T obj, Class<T> type, String name) {
-		try {
-			Field field = type.getDeclaredField(name);
-			field.setAccessible(true);
-			return (R) field.get(obj);
-		} catch (NoSuchFieldException | SecurityException | IllegalAccessException e) {
-			throw new IllegalStateException(e);
-		}
-	}
-
 }

@@ -1,6 +1,7 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
@@ -12,12 +13,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -29,11 +30,15 @@ import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 import org.eclipse.jdt.core.IField;
+import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.ui.JavadocContentAccess;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Variables;
 
 public class SqlContextFactoryImpl {
 
@@ -42,9 +47,9 @@ public class SqlContextFactoryImpl {
 	 *
 	 * @return 定数クラスパラメータMap
 	 */
-	public Map<String, ?> buildConstParamMap(String constParamPrefix, Collection<String> constantClassNames,
+	public Variables buildConstParamMap(String constParamPrefix, Collection<String> constantClassNames,
 			ClassLoader classLoader) {
-		Map<String, Object> paramMap = new HashMap<>();
+		Variables paramMap = new Variables();
 		for (String className : constantClassNames) {
 			if (className != null && !className.isEmpty()) {
 				try {
@@ -57,10 +62,10 @@ public class SqlContextFactoryImpl {
 		return paramMap;
 	}
 
-	public Map<String, ?> buildConstParamMap(String constParamPrefix,
+	public Variables buildConstParamMap(String constParamPrefix,
 			ClassesData classesData) {
 		ClassLoader classLoader = classesData.createURLClassLoader();
-		Map<String, Object> paramMap = new HashMap<>();
+		Variables paramMap = new Variables();
 		paramMap.putAll(buildConstParamMap(constParamPrefix, classesData.getLoaderTargetClassNames(), classLoader));
 
 		for (IType target : classesData.getSourceTypes()) {
@@ -75,9 +80,9 @@ public class SqlContextFactoryImpl {
 	 *
 	 * @return Enum定数パラメータMap
 	 */
-	public Map<String, ?> buildEnumConstParamMap(String constParamPrefix, Collection<String> enumConstantPackageNames,
+	public Variables buildEnumConstParamMap(String constParamPrefix, Collection<String> enumConstantPackageNames,
 			ClassLoader classLoader) {
-		Map<String, Object> paramMap = new HashMap<>();
+		Variables paramMap = new Variables();
 		for (String packageName : enumConstantPackageNames) {
 			if (packageName != null && !packageName.isEmpty()) {
 				for (Class<? extends Enum<?>> targetClass : listupEnumClasses(packageName, classLoader)) {
@@ -88,10 +93,26 @@ public class SqlContextFactoryImpl {
 		return paramMap;
 	}
 
-	public Map<String, ?> buildEnumConstParamMap(String constParamPrefix,
+	public Variables buildEnumConstParamMap(String constParamPrefix,
 			PackagesData packagesData) {
-		// TODO
-		return new HashMap<>();
+		ClassLoader classLoader = packagesData.createURLClassLoader();
+		Variables paramMap = new Variables();
+		paramMap.putAll(
+				buildEnumConstParamMap(constParamPrefix, packagesData.getLoaderTargetPackageNames(), classLoader));
+
+		for (Entry<String, Collection<IType>> types : packagesData.getSourceTypes().entrySet()) {
+			for (IType type : types.getValue()) {
+				try {
+					if (type.isEnum()) {
+						makeEnumConstParamMap(constParamPrefix, paramMap, types.getKey(), type);
+					}
+				} catch (JavaModelException e) {
+					//ignore
+				}
+			}
+		}
+
+		return paramMap;
 	}
 
 	/**
@@ -100,7 +121,7 @@ public class SqlContextFactoryImpl {
 	 * @param paramMap 定数パラメータを保持するMap
 	 * @param targetClass 定数パラメータを生成する定数クラス。クラス内に内部クラスを持つ場合は内部クラスの定数フィールドもパラメータに登録する
 	 */
-	protected void makeConstParamMap(String constParamPrefix, final Map<String, Object> paramMap,
+	protected void makeConstParamMap(String constParamPrefix, final Variables paramMap,
 			final Class<?> targetClass) {
 		try {
 			String fieldPrefix = targetClass.isMemberClass() ? upperSnakeCase(targetClass.getSimpleName()) + "_" : "";
@@ -113,7 +134,7 @@ public class SqlContextFactoryImpl {
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(fieldName, value);
+						paramMap.put(new Const(fieldName, value));
 					}
 				}
 			}
@@ -131,7 +152,7 @@ public class SqlContextFactoryImpl {
 		}
 	}
 
-	private void makeConstParamMap(String constParamPrefix, Map<String, Object> paramMap, IType targetClass) {
+	protected void makeConstParamMap(String constParamPrefix, Variables paramMap, IType targetClass) {
 		try {
 			String fieldPrefix = targetClass.isMember() ? upperSnakeCase(getSimpleName(targetClass)) + "_" : "";
 			// 指定されたクラス直下の定数フィールドを追加
@@ -143,7 +164,7 @@ public class SqlContextFactoryImpl {
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getElementName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(fieldName, value);
+						paramMap.put(new Const(fieldName, value, getJavadoc(field)));
 					}
 				}
 			}
@@ -158,6 +179,24 @@ public class SqlContextFactoryImpl {
 			}
 		} catch (IllegalArgumentException | SecurityException | JavaModelException ex) {
 			//ignore
+		}
+	}
+
+	private static String getJavadoc(IMember member) {
+		try {
+			Reader reader = JavadocContentAccess.getContentReader(member, false);
+			if (reader == null) {
+				return null;
+			}
+			StringBuffer buf = new StringBuffer();
+			int ch;
+			while ((ch = reader.read()) != -1) {
+				buf.append((char) ch);
+			}
+			String s = buf.toString();
+			return s.isEmpty() ? null : s;
+		} catch (IOException | JavaModelException e) {
+			return null;
 		}
 	}
 
@@ -176,6 +215,20 @@ public class SqlContextFactoryImpl {
 		return targetClass.getElementName();
 	}
 
+	private String getName(IType targetClass) {
+		return targetClass.getFullyQualifiedName();
+	}
+
+	private List<IField> getEnumConstants(IType targetClass) throws JavaModelException {
+		List<IField> result = new ArrayList<>();
+		for (IField f : targetClass.getFields()) {
+			if (f.isEnumConstant()) {
+				result.add(f);
+			}
+		}
+		return result;
+	}
+
 	/**
 	 * Enum型の定数パラメータのMapを生成する
 	 *
@@ -183,7 +236,7 @@ public class SqlContextFactoryImpl {
 	 * @param packageName パッケージ名
 	 * @param targetClass 対象Enumクラス
 	 */
-	protected void makeEnumConstParamMap(String constParamPrefix, final Map<String, Object> paramMap,
+	protected void makeEnumConstParamMap(String constParamPrefix, final Variables paramMap,
 			final String packageName,
 			final Class<? extends Enum<?>> targetClass) {
 
@@ -194,7 +247,20 @@ public class SqlContextFactoryImpl {
 		for (Enum<?> value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.name().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(fieldName, value);
+			paramMap.put(new Const(fieldName, value));
+		}
+	}
+
+	protected void makeEnumConstParamMap(String constParamPrefix, Variables paramMap, String packageName,
+			IType targetClass) throws JavaModelException {
+		String fieldPrefix = upperSnakeCase(getName(targetClass).substring(packageName.length() + 1)) + "_";
+
+		List<IField> enumValues = getEnumConstants(targetClass);
+
+		for (IField value : enumValues) {
+			String fieldName = constParamPrefix + fieldPrefix + value.getElementName().toUpperCase();
+			fieldName = fieldName.toUpperCase();
+			paramMap.put(new Const(fieldName, (Object) value.getElementName()/*enum name*/, getJavadoc(value)));
 		}
 	}
 
