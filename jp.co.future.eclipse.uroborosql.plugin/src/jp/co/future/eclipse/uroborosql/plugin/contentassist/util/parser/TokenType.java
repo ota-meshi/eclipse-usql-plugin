@@ -8,7 +8,7 @@ public enum TokenType {
 		public void scanEnd(DocumentScanner scanner) {
 			while (scanner.hasNext()) {
 				char c = scanner.next();
-				if (Character.isWhitespace(c) || Character.isDigit(c) || isSymbol(c)) {
+				if (Character.isWhitespace(c) || isSymbol(c)) {
 					scanner.previous();
 					return;
 				}

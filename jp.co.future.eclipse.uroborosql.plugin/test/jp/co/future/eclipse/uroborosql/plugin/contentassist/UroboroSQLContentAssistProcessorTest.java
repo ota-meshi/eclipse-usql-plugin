@@ -1,41 +1,25 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist;
 
+import static jp.co.future.eclipse.uroborosql.plugin.contentassist.ContentAssistTestUtil.*;
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import org.eclipse.jface.text.IDocument;
-import org.eclipse.jface.text.ITextViewer;
-import org.eclipse.jface.text.contentassist.ICompletionProposal;
-import org.eclipse.swt.graphics.Point;
 import org.junit.Test;
 
 public class UroboroSQLContentAssistProcessorTest {
-	private List<String> computeCompletionResults(String doc) {
-		UroboroSQLContentAssistProcessor assistProcessor = new UroboroSQLContentAssistProcessor();
-		ITextViewer textViewer = TestUtil.createTextViewer(doc);
-		int offset = doc.length();
 
-		ICompletionProposal[] completionProposals = assistProcessor.computeCompletionProposals(textViewer, offset);
-
-		return Arrays.stream(completionProposals)
-				.map(p -> {
-					IDocument document = TestUtil.createDocument(doc);
-					p.apply(document);
-					return toSelectionDocument(p.getSelection(document), document);
-				})
-
-				.collect(Collectors.toCollection(TestUtil.StringList::new));
-	}
-
-	private static String toSelectionDocument(Point point, IDocument document) {
-		StringBuilder sb = new StringBuilder(document.get());
-		sb.insert(point.x, "|");
-		return sb.toString();
+	@Test
+	public void testCompareCharCustom() {
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('a', 'a'), is(0));
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('a', 'b'), is(-1));
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('a', '#'), is(-1));
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('#', '#'), is(0));
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('#', 'a'), is(1));
+		assertThat(UroboroSQLContentAssistProcessor.compareCharCustom('b', 'a'), is(1));
 	}
 
 	@Test
@@ -44,20 +28,20 @@ public class UroboroSQLContentAssistProcessorTest {
 		List<String> result = computeCompletionResults("/*");
 
 		assertThat(result, is(Arrays.asList(
-				"/*IF |*/\n/*END*/",
 				"/*BEGIN*/\n|/*END*/",
-				"/*END*/|",
-				"/*ELSE*/|",
 				"/*ELIF |*/",
-				"/* _SQL_IDENTIFIER_ */|")));
+				"/*ELSE*/|",
+				"/*END*/|",
+				"/*IF |*/\n/*END*/",
+				"/* _SQL_ID_ */|")));
 
 		result = computeCompletionResults("/*E");
 
 		assertThat(result, is(
 				Arrays.asList(
-						"/*END*/|",
+						"/*ELIF |*/",
 						"/*ELSE*/|",
-						"/*ELIF |*/")));
+						"/*END*/|")));
 
 		result = computeCompletionResults("\t\t/*I");
 
@@ -91,13 +75,13 @@ public class UroboroSQLContentAssistProcessorTest {
 
 		assertThat(result, is(
 				Arrays.asList(
-						"TEST_VALUE /*IF |*/\n/*END*/",
-						"TEST_VALUE /*BEGIN*/\n|/*END*/",
-						"TEST_VALUE /*END*/|",
-						"TEST_VALUE /*ELSE*/|",
-						"TEST_VALUE /*ELIF |*/",
 						"TEST_VALUE /*testValue*/''|",
-						"TEST_VALUE /* _SQL_IDENTIFIER_ */|")));
+						"TEST_VALUE /*BEGIN*/\n|/*END*/",
+						"TEST_VALUE /*ELIF |*/",
+						"TEST_VALUE /*ELSE*/|",
+						"TEST_VALUE /*END*/|",
+						"TEST_VALUE /*IF |*/\n/*END*/",
+						"TEST_VALUE /* _SQL_ID_ */|")));
 
 		result = computeCompletionResults("TEST_VALUE /*t");
 
@@ -119,13 +103,13 @@ public class UroboroSQLContentAssistProcessorTest {
 
 		assertThat(result, is(
 				Arrays.asList(
-						"/*test_value*/ /*IF |*/\n/*END*/",
-						"/*test_value*/ /*BEGIN*/\n|/*END*/",
-						"/*test_value*/ /*END*/|",
-						"/*test_value*/ /*ELSE*/|",
-						"/*test_value*/ /*ELIF |*/",
 						"/*test_value*/ /*test_value*/''|",
-						"/*test_value*/ /* _SQL_IDENTIFIER_ */|")));
+						"/*test_value*/ /*BEGIN*/\n|/*END*/",
+						"/*test_value*/ /*ELIF |*/",
+						"/*test_value*/ /*ELSE*/|",
+						"/*test_value*/ /*END*/|",
+						"/*test_value*/ /*IF |*/\n/*END*/",
+						"/*test_value*/ /* _SQL_ID_ */|")));
 
 		result = computeCompletionResults("/*test_value*/ /*t");
 
@@ -156,14 +140,14 @@ public class UroboroSQLContentAssistProcessorTest {
 						"/*IF SF.isEmpty(|)",
 						"/*IF SF.isNotBlank(|)",
 						"/*IF SF.isNotEmpty(|)",
-						"/*IF SF.left(|)",
 						"/*IF SF.leftPad(|)",
+						"/*IF SF.left(|)",
 						"/*IF SF.mid(|)",
-						"/*IF SF.right(|)",
 						"/*IF SF.rightPad(|)",
+						"/*IF SF.right(|)",
 						"/*IF SF.split(|)",
-						"/*IF SF.trim(|)",
 						"/*IF SF.trimToEmpty(|)",
+						"/*IF SF.trim(|)",
 						"/*IF SF.uncapitalize(|)")));
 
 		result = computeCompletionResults("/*IF data.a */ /*IF d");

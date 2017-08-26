@@ -3,48 +3,30 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser;
 import java.util.Objects;
 import java.util.Optional;
 
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
-public class Token {
-	private final Document document;
-	private final int start;
+public abstract class Token {
 	private final TokenType type;
-	private int end;
 
-	Token(Document document, int start, TokenType type) {
-		this.document = document;
-		this.start = start;
+	public Token(TokenType type) {
 		this.type = type;
 	}
 
-	public DocumentPoint toDocumentPoint() {
-		return new DocumentPoint(document, start);
-	}
+	public abstract DocumentPoint toDocumentPoint();
 
-	void setEnd(int end) {
-		this.end = end;
-	}
+	public abstract int getStart();
 
-	public int getStart() {
-		return start;
-	}
-
-	public int getEnd() {
-		return end;
-	}
+	public abstract int getEnd();
 
 	public TokenType getType() {
 		return type;
 	}
 
-	public String getString() {
-		return document.substring(start, end + 1);
-	}
+	public abstract String getString();
 
-	public boolean isIn(int index) {
-		return start <= index && index <= end;
-	}
+	public abstract boolean isIn(int index);
+
+	public abstract Optional<Token> getNextToken();
 
 	@Override
 	public String toString() {
@@ -53,7 +35,7 @@ public class Token {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(start, end, type);
+		return Objects.hash(getStart(), type, getString());
 	}
 
 	@Override
@@ -68,22 +50,16 @@ public class Token {
 			return false;
 		}
 		Token other = (Token) obj;
-		if (end != other.end) {
-			return false;
-		}
-		if (start != other.start) {
+		if (getStart() != other.getStart()) {
 			return false;
 		}
 		if (type != other.type) {
 			return false;
 		}
+		if (Objects.equals(getString(), other.getString())) {
+			return false;
+		}
 		return true;
-	}
-
-	public Optional<Token> getNextToken() {
-		return document.getTokens().stream()
-				.filter(t -> t.isIn(end + 1))
-				.findFirst();
 	}
 
 }

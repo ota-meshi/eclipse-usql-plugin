@@ -18,7 +18,7 @@ public class Document {
 	private final Collection<IdentifierNode> identifierNodes;
 
 	public Document(IDocument document, int userOffset) {
-		this.document = document.get() + " "/*dummy*/;
+		this.document = document.get() + "\n"/*dummy*/;
 		this.userOffset = userOffset;
 		tokens = SqlParser.parse(this);
 		userOffsetToken = tokens.stream().filter(t -> t.isIn(this.userOffset)).findFirst().orElse(null);

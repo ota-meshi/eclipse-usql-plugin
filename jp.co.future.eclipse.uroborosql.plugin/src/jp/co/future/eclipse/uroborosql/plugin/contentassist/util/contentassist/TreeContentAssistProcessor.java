@@ -53,7 +53,7 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 		@Override
 		public Collection<Prop> getAssists(String name) {
 			return children.entrySet().stream()
-					.filter(e -> e.getKey().startsWith(name))
+					.filter(e -> HitTester.hit(name, e.getKey()).isPresent())
 					.map(e -> e.getValue())
 					.collect(Collectors.toList());
 		}

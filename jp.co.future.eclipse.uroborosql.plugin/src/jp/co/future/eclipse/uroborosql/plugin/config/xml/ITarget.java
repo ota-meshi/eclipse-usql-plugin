@@ -4,7 +4,6 @@ import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -66,38 +65,42 @@ public interface ITarget {
 		};
 	}
 
-	public static ITarget get(Element root, String... names) {
+	static ITarget get(Element root, String... names) {
 		Deque<String> nameList = new LinkedList<>(Arrays.asList(names));
 		if (nameList.isEmpty()) {
 			return EMPTY;
 		}
 
 		String leafName = nameList.pollLast();
-		Element parent = root;
-		if (!nameList.isEmpty()) {
-			String name = nameList.poll();
+		Element element = _getElementChain(root, nameList);
+		if (element == null) {
+			return EMPTY;
+		}
 
-			Iterator<Element> children = Xml.children(parent).iterator();
+		List<Element> leafs = Xml.children(element).stream()
+				.filter(e -> e.getTagName().equalsIgnoreCase(leafName))
+				.collect(Collectors.toList());
+		if (!leafs.isEmpty()) {
+			return new ElementsTarget(leafs);
+		}
+		return new ParentElementTarget(element, leafName);
+	}
 
-			while (children.hasNext()) {
-				Element element = children.next();
-				if (element.getTagName().equalsIgnoreCase(name)) {
-					name = nameList.poll();
-					parent = element;
-					children = Xml.children(parent).iterator();
-				}
+	/**
+	 * internal
+	 */
+	@Deprecated
+	static Element _getElementChain(Element element, Deque<String> names) {
+		if (names.isEmpty()) {
+			return element;
+		}
+		String name = names.poll();
+		for (Element child : Xml.children(element)) {
+			if (child.getTagName().equalsIgnoreCase(name)) {
+				return _getElementChain(child, names);
 			}
 		}
-		if (nameList.isEmpty()) {
-			List<Element> leafs = Xml.children(parent).stream()
-					.filter(e -> e.getTagName().equalsIgnoreCase(leafName))
-					.collect(Collectors.toList());
-			if (!leafs.isEmpty()) {
-				return new ElementsTarget(leafs);
-			}
-			return new ParentElementTarget(parent, leafName);
-		}
-		return EMPTY;
+		return null;
 	}
 
 }

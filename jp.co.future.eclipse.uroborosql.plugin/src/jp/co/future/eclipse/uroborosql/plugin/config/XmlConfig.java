@@ -1,20 +1,15 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.eclipse.core.resources.IProject;
@@ -25,11 +20,14 @@ import org.xml.sax.SAXException;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.xml.ITarget;
+import jp.co.future.eclipse.uroborosql.plugin.config.xml.Xml;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Variables;
 
 public class XmlConfig implements PluginConfig {
 	private final Document document;
 	private final IProject project;
-	private Map<String, Object> consts;
+	private Variables consts;
 
 	@Override
 	public String getSqlId() {
@@ -37,9 +35,9 @@ public class XmlConfig implements PluginConfig {
 	}
 
 	@Override
-	public Map<String, ?> getConsts() {
+	public Variables getConsts() {
 		if (consts == null) {
-			consts = new HashMap<>();
+			consts = new Variables();
 			consts.putAll(loadConstsByClasses());
 			consts.putAll(loadConstsByDb());
 		}
@@ -51,9 +49,9 @@ public class XmlConfig implements PluginConfig {
 	 * class から定数値の読み込み
 	 * @return
 	 */
-	private Map<String, Object> loadConstsByClasses() {
+	private Variables loadConstsByClasses() {
 
-		Map<String, Object> consts = new HashMap<>();
+		Variables consts = new Variables();
 		String constParamPrefix = getTarget("sqlContextFactory", "constParamPrefix").value().orElse("CLS_");
 		List<String> constantClassNames = getTarget("sqlContextFactory", "constantClassName")
 				.values().stream()
@@ -71,51 +69,66 @@ public class XmlConfig implements PluginConfig {
 		return consts;
 	}
 
-	private Map<String, Object> loadConstsByDb() {
-		String select = getTarget("sqlContextFactory", "constantSql")
-				.value().map(v -> v.trim()).orElse(null);
-		if (select == null) {
-			return Collections.emptyMap();
+	private Variables loadConstsByDb() {
+		List<String> selects = getTarget("sqlContextFactory", "constantSql")
+				.values().stream().map(v -> v.trim())
+				.collect(Collectors.toList());
+		if (selects.isEmpty()) {
+			return new Variables();
 		}
 
 		String url = getTarget("db", "url").value().map(v -> v.trim()).orElse(null);
 		String user = getTarget("db", "user").value().map(v -> v.trim()).orElse(null);
 		String password = getTarget("db", "password").value().map(v -> v.trim()).orElse(null);
 		String driver = getTarget("db", "driver").value().map(v -> v.trim()).orElse(null);
+		List<String> classpaths = getTarget("db", "classpath").values().stream().map(v -> v.trim())
+				.collect(Collectors.toList());
 
-		return Internal.connect(project, driver, url, user, password, conn -> {
-			Map<String, Object> map = new HashMap<>();
-			try (PreparedStatement ps = conn.prepareStatement(select);
-					ResultSet rs = ps.executeQuery();) {
-				while (rs.next()) {
-					String name = rs.getString(1);
-					Object value = null;
-					try {
-						value = rs.getString(2);
-					} catch (SQLException e) {
-					}
-					map.put(name, value);
-				}
+		return Internal.connect(project, driver, url, user, password, classpaths, conn -> {
+			Variables variables = new Variables();
+			for (String select : selects) {
+				variables.putAll(loadDbConst(conn, select));
 			}
-			return map;
+			return variables;
 
-		}).orElseGet(Collections::emptyMap);
+		}).orElseGet(Variables::new);
 	}
 
-	public XmlConfig(Path path, IProject project) throws IOException, ParserConfigurationException, SAXException {
-		try (InputStream input = Files.newInputStream(path)) {
-			DocumentBuilder builder = newDocumentBuilder();
-			document = builder.parse(input);
+	private Variables loadDbConst(Connection conn, String select) throws SQLException {
+		Variables variables = new Variables();
+		try (PreparedStatement ps = conn.prepareStatement(select);
+				ResultSet rs = ps.executeQuery();) {
+			while (rs.next()) {
+				String name = rs.getString(1);
+				Object value = null;
+				try {
+					value = rs.getObject(2);
+				} catch (SQLException e) {
+					variables.put(new Const(name));
+					continue;
+				}
+				String description = null;
+				try {
+					description = rs.getString(3);
+				} catch (SQLException e) {
+					variables.put(new Const(name, value));
+					continue;
+				}
+				variables.put(new Const(name, value, description));
+			}
 		}
-		this.project = project;
+		return variables;
 	}
 
-	private DocumentBuilder newDocumentBuilder() throws ParserConfigurationException {
-		DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
-		builderFactory.setNamespaceAware(true);
-		builderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
-		builderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);//dtd読み込みをしない
-		return builderFactory.newDocumentBuilder();
+	public XmlConfig(byte[] input, IProject project)
+			throws IOException, ParserConfigurationException, SAXException {
+		this(new ByteArrayInputStream(input), project);
+	}
+
+	public XmlConfig(InputStream input, IProject project)
+			throws IOException, ParserConfigurationException, SAXException {
+		document = Xml.parse(input);
+		this.project = project;
 	}
 
 	private ITarget getTarget(String... tags) {

@@ -1,8 +1,9 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.StringJoiner;
-import java.util.function.Predicate;
+import java.util.function.Function;
 
 import org.eclipse.jface.text.contentassist.CompletionProposal;
 import org.eclipse.jface.text.contentassist.ICompletionProposal;
@@ -11,18 +12,20 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQ
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
 public class TestContentAssistProcessor implements PartContentAssistProcessor {
-	private final Predicate<DocumentPoint> test;
+	private final Function<DocumentPoint, OptionalInt> test;
 	private final String[] replacementLines;;
 	private final int cursorPosition;
 	private final String displayString;
 	private final String additionalProposalInfo;
 
-	public TestContentAssistProcessor(Predicate<DocumentPoint> test, String replacementString, int cursorPosition,
+	public TestContentAssistProcessor(Function<DocumentPoint, OptionalInt> test, String replacementString,
+			int cursorPosition,
 			String displayString, String additionalProposalInfo) {
 		this(test, new String[] { replacementString }, cursorPosition, displayString, additionalProposalInfo);
 	}
 
-	public TestContentAssistProcessor(Predicate<DocumentPoint> test, String[] replacementLines, int cursorPosition,
+	public TestContentAssistProcessor(Function<DocumentPoint, OptionalInt> test, String[] replacementLines,
+			int cursorPosition,
 			String displayString, String additionalProposalInfo) {
 		this.test = test;
 		this.replacementLines = replacementLines;
@@ -33,7 +36,8 @@ public class TestContentAssistProcessor implements PartContentAssistProcessor {
 
 	@Override
 	public Optional<ICompletionProposal> computeCompletionProposal(DocumentPoint point) {
-		if (!test.test(point)) {
+		OptionalInt diffPoint = test.apply(point);
+		if (!diffPoint.isPresent()) {
 			return Optional.empty();
 		}
 
