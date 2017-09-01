@@ -14,15 +14,16 @@ import org.eclipse.swt.graphics.Image;
 
 import jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin;
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Const;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Variable;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Variables;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.IVariable;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variable;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentScanner;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.SqlConstants;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.ListContentAssistProcessor;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.PartContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IListContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPartContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TextContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TreeContentAssistProcessor;
@@ -59,13 +60,16 @@ public class UroboroSQLUtils {
 
 	public static final List<String> SYNTAXES = Collections
 			.unmodifiableList(Arrays.asList("IF", "END", "ELSE", "ELIF", "BEGIN"));
-	public static final List<PartContentAssistProcessor> SYNTAX_PROCESSORS = Collections.unmodifiableList(Arrays.asList(
-			new TextContentAssistProcessor("/*IF", new String[] { "/*IF */", "/*END*/" }, 5, "/*IF*/", "syntax IF"),
-			new TextContentAssistProcessor("/*BEGIN*/", new String[] { "/*BEGIN*/", "/*END*/" }, 10, "/*BEGIN*/",
-					"syntax BEGIN"),
-			new TextContentAssistProcessor("/*END*/", "/*END*/", "syntax END"),
-			new TextContentAssistProcessor("/*ELSE*/", "/*ELSE*/", "syntax ELSE"),
-			new TextContentAssistProcessor("/*ELIF", "/*ELIF */", 7, "/*ELIF*/", "syntax ELIF")
+	public static final List<IPartContentAssistProcessor> SYNTAX_PROCESSORS = Collections
+			.unmodifiableList(Arrays.asList(
+					new TextContentAssistProcessor("/*IF", new String[] { "/*IF */", "/*END*/" }, 5, "/*IF*/",
+							() -> "syntax IF"),
+					new TextContentAssistProcessor("/*BEGIN*/", new String[] { "/*BEGIN*/", "/*END*/" }, 10,
+							"/*BEGIN*/",
+							() -> "syntax BEGIN"),
+					new TextContentAssistProcessor("/*END*/", "/*END*/", () -> "syntax END"),
+					new TextContentAssistProcessor("/*ELSE*/", "/*ELSE*/", () -> "syntax ELSE"),
+					new TextContentAssistProcessor("/*ELIF", "/*ELIF */", 7, "/*ELIF*/", () -> "syntax ELIF")
 
 	));
 
@@ -98,35 +102,38 @@ public class UroboroSQLUtils {
 		return false;
 	}
 
-	public static ListContentAssistProcessor getScriptAssistProcessors(Document document, PluginConfig config) {
+	public static IListContentAssistProcessor getScriptAssistProcessors(Document document, boolean lazy,
+			PluginConfig config) {
 		TreeContentAssistProcessor contentAssistProcessor = new TreeContentAssistProcessor();
 
 		//string functions
-		contentAssistProcessor.addAll(STR_FUNCTION_METHODS, "String Function script");
+		contentAssistProcessor.addAll(STR_FUNCTION_METHODS, () -> "String Function script");
 
 		//定数
-		config.getConsts().forEach(v -> contentAssistProcessor.add(v.getVariableName(), v.getActDescription()));
+		config.getConsts().forEach(v -> contentAssistProcessor.add(v.getVariableName(), () -> v.getActDescription()));
+		if (lazy) {
+			//TODO
+		}
 
 		//すでに利用しているスクリプト
 		contentAssistProcessor.addAll(document.getTokens().stream()
 				.filter(t -> t.getType() == TokenType.M_COMMENT)
 				.map(t -> getScripts(t, document, config))
 				.flatMap(Set::stream)
-				.collect(Collectors.toSet()), "used script.");
+				.collect(Collectors.toSet()), () -> "used script.");
 
 		//SQLの中から可能性のある変数名
 		Set<String> sqlTokenVariables = new HashSet<>();
 		setAllIdentifierVariables(sqlTokenVariables, document.getIdentifierNodes());
 
 		contentAssistProcessor.addAll(sqlTokenVariables,
-				"candidates calculated from identifiers.");
+				() -> "candidates calculated from identifiers.");
 
 		return contentAssistProcessor;
 	}
 
-	public static List<PartContentAssistProcessor> getAllVariableAssistProcessors(Document document,
-			PluginConfig config) {
-		List<PartContentAssistProcessor> variableAssistProcessors = new ArrayList<>();
+	public static List<IPartContentAssistProcessor> getAllVariableAssistProcessors(Document document,
+			boolean lazy, PluginConfig config) {
 
 		Variables variables = new Variables();
 		//定数
@@ -138,20 +145,27 @@ public class UroboroSQLUtils {
 				.map(t -> getVariables(t, document, config))
 				.collect(Variables.reducing()).orElseGet(Variables::new));
 
-		variables.variables().stream()
-				.filter(e -> !STR_FUNCTION_METHODS.contains(e.getVariableName()))
-				.map(e -> e.createContentAssistProcessor())
-				.forEach(variableAssistProcessors::add);
+		List<IPartContentAssistProcessor> variableAssistProcessors = new ArrayList<>();
+
+		for (IVariable variable : variables.variables()) {
+			if (STR_FUNCTION_METHODS.contains(variable.getVariableName())) {
+				continue;
+			}
+			if (!lazy) {
+				variableAssistProcessors.add(variable.createContentAssistProcessor());
+			} else {
+				variableAssistProcessors.add(variable.createLazyContentAssistProcessor());
+			}
+		}
 
 		//SQLの中から可能性のある変数名
 		Set<String> sqlTokenVariables = new HashSet<>();
 		setAllIdentifierVariables(sqlTokenVariables, document.getIdentifierNodes());
-		List<PartContentAssistProcessor> sqlTokenVariableAssistProcessors = sqlTokenVariables.stream()
+		List<IPartContentAssistProcessor> sqlTokenVariableAssistProcessors = sqlTokenVariables.stream()
 				.filter(s -> !variables.containsVariable(s))
 				.map(token -> new TokenContentAssistProcessor("/*" + token + "*/",
 						"/*" + token + "*/''",
-						"/*" + token + "*/''",
-						"candidates calculated from identifiers."))
+						() -> "candidates calculated from identifiers."))
 				.collect(Collectors.toList());
 
 		variableAssistProcessors.addAll(sqlTokenVariableAssistProcessors);
@@ -241,7 +255,7 @@ public class UroboroSQLUtils {
 			return new ScriptVariables(OGNLUtils.getVariableNames(expression), ScriptType.ELIF);
 		} else {
 			String comment = s.replaceAll("\\*/$", "").replaceAll("^/\\*", "").trim();
-			if (!isTargetComment(comment)) {
+			if (!isVariableTargetComment(comment)) {
 				return new ScriptVariables(ScriptType.VALIABLE);
 			}
 			if (SYNTAXES.contains(comment) || config.getSqlId().equals(comment)) {
@@ -266,7 +280,7 @@ public class UroboroSQLUtils {
 		return sb.length() > 0 ? sb.toString() : null;
 	}
 
-	private static boolean isTargetComment(final String comment) {
+	public static boolean isVariableTargetComment(final String comment) {
 		if (comment != null
 				&& !comment.isEmpty()) {
 			char c = comment.charAt(0);

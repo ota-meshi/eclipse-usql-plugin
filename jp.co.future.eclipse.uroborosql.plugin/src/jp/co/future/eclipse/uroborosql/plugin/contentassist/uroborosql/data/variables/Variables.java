@@ -1,4 +1,4 @@
-package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data;
+package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables;
 
 import java.util.Collection;
 import java.util.Collections;

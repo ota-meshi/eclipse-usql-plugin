@@ -116,10 +116,7 @@ public enum TokenType {
 		public void scanEnd(DocumentScanner scanner) {
 			while (scanner.hasNext()) {
 				char c = scanner.next();
-				if (!isSymbol(c)
-						|| c == '\''
-						|| c == '"'
-						|| c == '/' && scanner.offset(1) == '*'
+				if (!isSymbol(c) || c == '\'' || c == '"' || c == '/' && scanner.offset(1) == '*'
 						|| c == '-' && scanner.offset(1) == '-') {
 					scanner.previous();
 					return;
@@ -165,8 +162,10 @@ public enum TokenType {
 		public boolean isSqlEnable() {
 			return false;
 		}
+
 	},
 	M_COMMENT {
+
 		@Override
 		public void scanEnd(DocumentScanner scanner) {
 			scanner.next();
@@ -188,6 +187,7 @@ public enum TokenType {
 		public boolean isSqlEnable() {
 			return false;
 		}
+
 	},;
 
 	public static TokenType startOf(char c, DocumentScanner scanner) {

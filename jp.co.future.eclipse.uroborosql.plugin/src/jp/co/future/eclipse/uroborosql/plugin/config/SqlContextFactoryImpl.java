@@ -1,7 +1,6 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
@@ -13,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,15 +28,13 @@ import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 import org.eclipse.jdt.core.IField;
-import org.eclipse.jdt.core.IMember;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.ui.JavadocContentAccess;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Const;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Variables;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
 
 public class SqlContextFactoryImpl {
 
@@ -134,7 +130,7 @@ public class SqlContextFactoryImpl {
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(new Const(fieldName, value));
+						paramMap.put(new Const(fieldName, () -> value));
 					}
 				}
 			}
@@ -154,17 +150,17 @@ public class SqlContextFactoryImpl {
 
 	protected void makeConstParamMap(String constParamPrefix, Variables paramMap, IType targetClass) {
 		try {
-			String fieldPrefix = targetClass.isMember() ? upperSnakeCase(getSimpleName(targetClass)) + "_" : "";
+			String fieldPrefix = targetClass.isMember() ? upperSnakeCase(Jdts.getSimpleName(targetClass)) + "_" : "";
 			// 指定されたクラス直下の定数フィールドを追加
 			IField[] fields = targetClass.getFields();
 			for (IField field : fields) {
 				int mod = field.getFlags();
 				if (Modifier.isFinal(mod) && Modifier.isStatic(mod)) {
-					Object value = getValue(field);
+					Object value = Jdts.getValue(field);
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getElementName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(new Const(fieldName, value, getJavadoc(field)));
+						paramMap.put(new Const(fieldName, () -> value, () -> Jdts.getJavadoc(field)));
 					}
 				}
 			}
@@ -180,53 +176,6 @@ public class SqlContextFactoryImpl {
 		} catch (IllegalArgumentException | SecurityException | JavaModelException ex) {
 			//ignore
 		}
-	}
-
-	private static String getJavadoc(IMember member) {
-		try {
-			Reader reader = JavadocContentAccess.getContentReader(member, false);
-			if (reader == null) {
-				return null;
-			}
-			StringBuffer buf = new StringBuffer();
-			int ch;
-			while ((ch = reader.read()) != -1) {
-				buf.append((char) ch);
-			}
-			String s = buf.toString();
-			return s.isEmpty() ? null : s;
-		} catch (IOException | JavaModelException e) {
-			return null;
-		}
-	}
-
-	private Object getValue(IField field) throws JavaModelException {
-		Object value = field.getConstant();
-		if (value instanceof String) {
-			if (field.getTypeSignature().equals("QString;")) {
-				String s = value.toString();
-				return s.substring(1, s.length() - 1);
-			}
-		}
-		return value;
-	}
-
-	private String getSimpleName(IType targetClass) {
-		return targetClass.getElementName();
-	}
-
-	private String getName(IType targetClass) {
-		return targetClass.getFullyQualifiedName();
-	}
-
-	private List<IField> getEnumConstants(IType targetClass) throws JavaModelException {
-		List<IField> result = new ArrayList<>();
-		for (IField f : targetClass.getFields()) {
-			if (f.isEnumConstant()) {
-				result.add(f);
-			}
-		}
-		return result;
 	}
 
 	/**
@@ -247,20 +196,20 @@ public class SqlContextFactoryImpl {
 		for (Enum<?> value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.name().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(new Const(fieldName, value));
+			paramMap.put(new Const(fieldName, () -> value));
 		}
 	}
 
 	protected void makeEnumConstParamMap(String constParamPrefix, Variables paramMap, String packageName,
 			IType targetClass) throws JavaModelException {
-		String fieldPrefix = upperSnakeCase(getName(targetClass).substring(packageName.length() + 1)) + "_";
+		String fieldPrefix = upperSnakeCase(Jdts.getName(targetClass).substring(packageName.length() + 1)) + "_";
 
-		List<IField> enumValues = getEnumConstants(targetClass);
+		List<IField> enumValues = Jdts.getEnumConstants(targetClass);
 
 		for (IField value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.getElementName().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(new Const(fieldName, (Object) value.getElementName()/*enum name*/, getJavadoc(value)));
+			paramMap.put(new Const(fieldName, () -> value.getElementName()/*enum name*/, () -> Jdts.getJavadoc(value)));
 		}
 	}
 
@@ -422,4 +371,5 @@ public class SqlContextFactoryImpl {
 		}
 		return builder.toString();
 	}
+
 }

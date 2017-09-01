@@ -45,7 +45,17 @@ public class TestUtil {
 				}
 				if (method.getName().equals("get")
 						&& Arrays.equals(method.getParameterTypes(), new Class<?>[] { int.class, int.class })) {
-					return text.substring((Integer) args[0], (Integer) args[1]);
+					int offset = (Integer) args[0];
+					int length = (Integer) args[1];
+					return text.substring(offset, offset + length);
+				}
+				if (method.getName().equals("getLength") && method.getParameterCount() == 0) {
+					return text.length();
+				}
+				if (method.getName().equals("getChar")
+						&& Arrays.equals(method.getParameterTypes(), new Class<?>[] { int.class })) {
+					int offset = (Integer) args[0];
+					return text.charAt(offset);
 				}
 				if (method.getName().equals("replace")
 						&& Arrays.equals(method.getParameterTypes(),
@@ -61,6 +71,10 @@ public class TestUtil {
 					text = builder.toString();
 
 					return null;
+				}
+
+				if (method.getName().equals("toString") && method.getParameterCount() == 0) {
+					return escape(text);
 				}
 
 				throw new IllegalStateException("未対応:" + method.toString());

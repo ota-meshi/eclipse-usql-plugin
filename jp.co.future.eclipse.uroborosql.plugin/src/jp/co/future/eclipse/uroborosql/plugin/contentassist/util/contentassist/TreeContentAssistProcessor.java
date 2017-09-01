@@ -3,44 +3,47 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import org.eclipse.jface.text.contentassist.CompletionProposal;
-import org.eclipse.jface.text.contentassist.ICompletionProposal;
-
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQLUtils;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
-public class TreeContentAssistProcessor implements ListContentAssistProcessor {
+public class TreeContentAssistProcessor implements IListContentAssistProcessor {
+	private static class LazyPointProp {
+		private final int lazyPoint;
+		private final Prop prop;
+
+		LazyPointProp(int lazyPoint, Prop prop) {
+			this.lazyPoint = lazyPoint;
+			this.prop = prop;
+		}
+	}
+
 	private interface PropAccessor {
-		Prop createOrGet(String name, String additionalProposalInfo);
+		Prop createOrGet(String name, Supplier<String> additionalProposalInfo);
 
 		Prop get(String name);
 
-		Collection<Prop> getAssists(String name);
+		Collection<LazyPointProp> getAssists(String name);
 	}
 
 	private static class Prop implements PropAccessor {
 		private final String name;
-		private final String additionalProposalInfo;
+		private final Supplier<String> additionalProposalInfo;
 
 		private final Map<String, Prop> children = new HashMap<>();
 
-		private Prop(String name, String additionalProposalInfo) {
+		private Prop(String name, Supplier<String> additionalProposalInfo) {
 			this.name = name;
 			this.additionalProposalInfo = additionalProposalInfo;
 		}
 
-		private String getName() {
-			return name;
-		}
-
 		@Override
-		public Prop createOrGet(String name, String additionalProposalInfo) {
+		public Prop createOrGet(String name, Supplier<String> additionalProposalInfo) {
 			return children
 					.computeIfAbsent(name, n -> new Prop(name, additionalProposalInfo));
 		}
@@ -51,11 +54,17 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 		}
 
 		@Override
-		public Collection<Prop> getAssists(String name) {
-			return children.entrySet().stream()
-					.filter(e -> HitTester.hit(name, e.getKey()).isPresent())
-					.map(e -> e.getValue())
-					.collect(Collectors.toList());
+		public Collection<LazyPointProp> getAssists(String name) {
+			List<LazyPointProp> result = new ArrayList<>();
+			children.forEach((k, v) -> {
+				OptionalInt point = HitTester.hit(name, k);
+				if (!point.isPresent()) {
+					return;
+				}
+				result.add(new LazyPointProp(point.getAsInt(), v));
+			});
+
+			return result;
 		}
 
 		//		@Override
@@ -68,7 +77,7 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 	private final PropAccessor root = new PropAccessor() {
 
 		@Override
-		public Prop createOrGet(String name, String additionalProposalInfo) {
+		public Prop createOrGet(String name, Supplier<String> additionalProposalInfo) {
 			return props
 					.computeIfAbsent(name, n -> new Prop(name, additionalProposalInfo));
 		}
@@ -79,23 +88,29 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 		}
 
 		@Override
-		public Collection<Prop> getAssists(String name) {
-			return props.entrySet().stream()
-					.filter(e -> e.getKey().startsWith(name))
-					.map(e -> e.getValue())
-					.collect(Collectors.toList());
+		public Collection<LazyPointProp> getAssists(String name) {
+			List<LazyPointProp> result = new ArrayList<>();
+			props.forEach((k, v) -> {
+				OptionalInt point = HitTester.hit(name, k);
+				if (!point.isPresent()) {
+					return;
+				}
+				result.add(new LazyPointProp(point.getAsInt(), v));
+			});
+
+			return result;
 		}
 	};
 
-	public void addAll(Collection<String> props, String additionalProposalInfo) {
+	public void addAll(Collection<String> props, Supplier<String> additionalProposalInfo) {
 		props.forEach(p -> add(p, additionalProposalInfo));
 	}
 
-	public void add(String props, String additionalProposalInfo) {
+	public void add(String props, Supplier<String> additionalProposalInfo) {
 		add(props.split("\\.", -1), additionalProposalInfo);
 	}
 
-	public void add(String[] props, String additionalProposalInfo) {
+	public void add(String[] props, Supplier<String> additionalProposalInfo) {
 		PropAccessor prop = root;
 
 		for (String propName : props) {
@@ -104,7 +119,7 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 	}
 
 	@Override
-	public List<ICompletionProposal> computeCompletionProposals(DocumentPoint point) {
+	public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint point) {
 		PropAccessor propAccess = root;
 		String[] userProps = point.getRangeText().split("\\.", -1);
 		List<String> replacementProps = new ArrayList<>();
@@ -114,29 +129,25 @@ public class TreeContentAssistProcessor implements ListContentAssistProcessor {
 			if (prop == null) {
 				return Collections.emptyList();
 			}
-			replacementProps.add(prop.getName());
+			replacementProps.add(prop.name);
 			propAccess = prop;
 		}
 		String endPropName = userProps[userProps.length - 1];
-		Collection<Prop> hits = propAccess.getAssists(endPropName);
+		Collection<LazyPointProp> hits = propAccess.getAssists(endPropName);
 		int replacementLength = point.getDocument().getUserOffset() - point.point();
 
 		return hits.stream()
-				.filter(p -> !endPropName.equals(p.getName()))
-				.sorted(Comparator.comparing(Prop::getName))
+				.filter(p -> !endPropName.equals(p.prop.name))
 				.map(p -> {
 					List<String> replacementProps2 = new ArrayList<>(replacementProps);
-					replacementProps2.add(p.getName());
+					replacementProps2.add(p.prop.name);
 					String replacementString = String.join(".", replacementProps2);
 					int cursorPosition = replacementString.lastIndexOf(")");
 					if (cursorPosition < 0) {
 						cursorPosition = replacementString.length();
 					}
-					return new CompletionProposal(replacementString, point.point(), replacementLength, cursorPosition,
-							UroboroSQLUtils.getImage(),
-							p.getName(),
-							/* contextInformation */null,
-							p.additionalProposalInfo);
+					return new CompletionProposal(p.lazyPoint, replacementString, point.point(), replacementLength,
+							cursorPosition, p.prop.name, p.prop.additionalProposalInfo.get());
 				})
 				.collect(Collectors.toList());
 

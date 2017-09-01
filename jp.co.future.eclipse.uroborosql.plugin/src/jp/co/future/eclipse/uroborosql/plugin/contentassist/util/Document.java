@@ -17,12 +17,20 @@ public class Document {
 	private final Token userOffsetToken;
 	private final Collection<IdentifierNode> identifierNodes;
 
-	public Document(IDocument document, int userOffset) {
-		this.document = document.get() + "\n"/*dummy*/;
+	public Document(String document) {
+		this(document, 0);
+	}
+
+	public Document(String document, int userOffset) {
+		this.document = document + "\n"/*dummy*/;
 		this.userOffset = userOffset;
 		tokens = SqlParser.parse(this);
-		userOffsetToken = tokens.stream().filter(t -> t.isIn(this.userOffset)).findFirst().orElse(null);
+		userOffsetToken = tokens.stream().filter(t -> t.isIn(this.userOffset - 1)).findFirst().orElse(null);
 		identifierNodes = SqlParser.parseIdentifiers(tokens);
+	}
+
+	public Document(IDocument document, int userOffset) {
+		this(document.get(), userOffset);
 	}
 
 	public int getUserOffset() {

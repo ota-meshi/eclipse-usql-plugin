@@ -38,7 +38,8 @@ public class HitTesterTest {
 	public void testToTokenIterator() {
 
 		assertThat(toTokenIterator("Abc $    def   Ghi    .123 jklm "), is("Abc$def Ghi.123 jklm"));
-		assertThat(toTokenIterator("  _   Abc"), is("_Abc"));
+		assertThat(toTokenIterator("  _   Abc"), is("_ Abc"));
+		assertThat(toTokenIterator("  $   Abc"), is("$Abc"));
 	}
 
 	private String toTokenIterator(String string) {

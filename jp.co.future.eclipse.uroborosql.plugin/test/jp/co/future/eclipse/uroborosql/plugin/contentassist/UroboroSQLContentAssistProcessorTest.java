@@ -191,4 +191,40 @@ public class UroboroSQLContentAssistProcessorTest {
 		assertThat(result, is(Arrays.asList(
 				"/*data*/123 /*IF data */\n/*END*/ /*data*/123|")));
 	}
+
+	@Test
+	public void testComputeCompletionProposals06() {
+		List<String> result = computeCompletionResults(" /*data*/123 /*data", -3);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|")));
+
+		result = computeCompletionResults(" /*data*/123 /*data22", -5);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|22")));
+
+		result = computeCompletionResults(" /*data*/123 /*data*/123", -5);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|")));
+	}
+
+	@Test
+	public void testComputeCompletionProposals07() {
+		List<String> result = computeCompletionResults(" /*data*/123 /*data\n", -1);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|\n")));
+
+		result = computeCompletionResults(" /*data*/123 /*data\na", -1);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|a")));
+
+		result = computeCompletionResults(" /*data*/123 /*data*/\na", -4);
+
+		assertThat(result, is(Arrays.asList(
+				" /*data*/123 /*data*/123|\na")));
+	}
 }

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.w3c.dom.Element;
@@ -16,22 +17,24 @@ public class AttributableValue {
 
 	private final String value;
 	private final Map<String, String> attr;
+	private final Element element;
 
 	public AttributableValue(String value) {
-		this(value, Collections.emptyMap());
+		this(value, Collections.emptyMap(), null);
 	}
 
-	public AttributableValue(String value, Map<String, String> attr) {
+	public AttributableValue(String value, Map<String, String> attr, Element element) {
 		this.value = value;
 		this.attr = attr;
+		this.element = element;
 	}
 
-	public static AttributableValue of(Element element) {
+	static AttributableValue of(Element element) {
 		Map<String, String> attr = new HashMap<>(Xml.asMap(element.getAttributes()));
 		if (attr.containsKey("value")) {
 			String value = Objects.toString(attr.get("value"), "");
 			attr.remove("value");
-			return new AttributableValue(value, attr);
+			return new AttributableValue(value, attr, null);
 		} else {
 			StringBuilder sb = new StringBuilder();
 			for (Node node : Xml.asList(element.getChildNodes())) {
@@ -40,11 +43,11 @@ public class AttributableValue {
 				}
 			}
 			String value = sb.toString();
-			return new AttributableValue(value, attr);
+			return new AttributableValue(value, attr, element);
 		}
 	}
 
-	public static List<AttributableValue> getValues(Element element) {
+	static List<AttributableValue> getValues(Element element) {
 		List<Element> values = Xml.children(element).stream()
 				.filter(e -> e.getTagName().equalsIgnoreCase("value"))
 				.collect(Collectors.toList());
@@ -60,7 +63,7 @@ public class AttributableValue {
 				.flatMap(Arrays::stream)
 				.map(String::trim)
 				.filter(s -> !s.isEmpty())
-				.map(s -> new AttributableValue(s, value.attr()))
+				.map(s -> new AttributableValue(s, value.attr, element))
 				.collect(Collectors.toList());
 	}
 
@@ -68,7 +71,11 @@ public class AttributableValue {
 		return value;
 	}
 
-	public Map<String, String> attr() {
-		return attr;
+	public Optional<String> attr(String name) {
+		return Optional.ofNullable(attr.get(name)).filter(s -> !s.isEmpty());
+	}
+
+	public Optional<Element> element() {
+		return Optional.ofNullable(element);
 	}
 }

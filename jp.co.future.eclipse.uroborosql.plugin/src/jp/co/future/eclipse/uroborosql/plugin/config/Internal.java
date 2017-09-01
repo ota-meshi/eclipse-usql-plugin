@@ -1,23 +1,30 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -27,12 +34,11 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.Set;
-
-import javax.xml.parsers.ParserConfigurationException;
+import java.util.StringJoiner;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
-import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.jdt.core.IClassFile;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
@@ -43,39 +49,16 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
-import org.xml.sax.SAXException;
+
+import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig.DbInfo;
+import jp.co.future.eclipse.uroborosql.plugin.config.executor.Executor;
+import jp.co.future.eclipse.uroborosql.plugin.config.executor.JdbcExecutor;
+import jp.co.future.eclipse.uroborosql.plugin.config.executor.UroboroSQLExecutor;
+import jp.co.future.eclipse.uroborosql.plugin.config.utils.SQLFunction;
+import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer;
+import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CacheContainerMap;
 
 class Internal {
-	public static IProject getProject(IEditorPart editor) {
-		IFileEditorInput editorInput = (IFileEditorInput) editor.getEditorInput();
-		IFile file = editorInput.getFile();
-
-		return file.getProject();
-	}
-
-	public static PluginConfig getConfig(IProject project) {
-		try {
-			Path location = Paths.get(project.getDescription().getLocationURI());
-			Path path = location.resolve(".uroborosqlpluginrc.xml");
-			if (Files.exists(path)) {
-				try (InputStream input = Files.newInputStream(path)) {
-					return new XmlConfig(input, project);
-				}
-			}
-
-			return null;
-		} catch (CoreException | IOException | ParserConfigurationException | SAXException e) {
-		}
-		return getDefaultConfig();
-	}
-
-	public static PluginConfig getDefaultConfig() {
-
-		return new PluginConfig() {
-			//default
-		};
-	}
-
 	static abstract class AbsJavaData {
 		private final Collection<URL> urls;
 
@@ -84,7 +67,7 @@ class Internal {
 		}
 
 		public ClassLoader createURLClassLoader() {
-			return URLClassLoader.newInstance(urls.toArray(new URL[urls.size()]));
+			return Internal.createCustomClassLoader(urls);
 		}
 
 	}
@@ -108,6 +91,137 @@ class Internal {
 		public Collection<String> getLoaderTargetClassNames() {
 			return loaderTargetClassNames;
 		}
+	}
+
+	static class PackagesData extends AbsJavaData {
+		private final Collection<String> loaderTargetPackageNames;
+		private final Map<String, Collection<IType>> sourceTypes;
+
+		public PackagesData(Collection<URL> urls, Collection<String> loaderTargetPackageNames,
+				Map<String, Collection<IType>> sourceTypes) {
+			super(urls);
+			this.loaderTargetPackageNames = loaderTargetPackageNames;
+			this.sourceTypes = sourceTypes;
+		}
+
+		public Map<String, Collection<IType>> getSourceTypes() {
+			return sourceTypes;
+		}
+
+		public Collection<String> getLoaderTargetPackageNames() {
+			return loaderTargetPackageNames;
+		}
+
+	}
+
+	private static class CustomClassLoader extends URLClassLoader {
+		private final Set<String> defined = new HashSet<>();
+		private final ClassLoader defaultClassLoader;
+
+		public CustomClassLoader(URL[] urls) {
+			//			super(URLClassLoader.newInstance(urls, Thread.currentThread().getContextClassLoader()));
+			super(urls);
+			defaultClassLoader = Thread.currentThread().getContextClassLoader();
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		public <T> Class<T> defineAndLoadClass(Class<? extends T> type) throws ClassNotFoundException, IOException {
+			String name = type.getName();
+			if (defined.add(name)) {
+				try (InputStream input = CustomClassLoader.class.getClassLoader()
+						.getResourceAsStream(name.replaceAll("\\.", "/") + ".class");
+						ByteArrayOutputStream output = new ByteArrayOutputStream();) {
+					copy(input, output);
+					byte[] b = output.toByteArray();
+					defineClass(name, b, 0, b.length);
+				}
+			}
+
+			return (Class) loadClass(name);
+		}
+
+		private static long copy(InputStream source, OutputStream sink)
+				throws IOException {
+			long nread = 0L;
+			byte[] buf = new byte[8192];
+			int n;
+			while ((n = source.read(buf)) > 0) {
+				sink.write(buf, 0, n);
+				nread += n;
+			}
+			return nread;
+		}
+
+		@Override
+		protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+			try {
+				return super.loadClass(name, resolve);
+			} catch (ClassNotFoundException e) {
+				return defaultClassLoader.loadClass(name);
+			}
+		}
+
+	}
+
+	public static CustomClassLoader createCustomClassLoader(Collection<?> classpaths) {
+		List<URL> urls = new ArrayList<>();
+		for (Object object : classpaths) {
+			if (object instanceof URL) {
+				urls.add((URL) object);
+			} else {
+				String classpath = object.toString();
+				try {
+					urls.add(new URL(classpath));
+					continue;
+				} catch (MalformedURLException e) {
+				}
+
+				try {
+					urls.add(Paths.get(classpath).toUri().toURL());
+				} catch (MalformedURLException e) {
+					// ignore
+				}
+			}
+		}
+
+		return new CustomClassLoader(urls.toArray(new URL[urls.size()]));
+	}
+
+	public static IProject getProject(IEditorPart editor) {
+		IFileEditorInput editorInput = (IFileEditorInput) editor.getEditorInput();
+		IFile file = editorInput.getFile();
+
+		return file.getProject();
+	}
+
+	private static final CacheContainerMap<Path, PluginConfig, IOException> cachePluginConfig = CacheContainer
+			.createMap((p, c, time) -> {
+				FileTime fileTime = Files.getLastModifiedTime(p);
+				if (fileTime != null) {
+					return fileTime.toMillis() < time;
+				}
+				return false;
+			});
+
+	public static PluginConfig getConfig(IProject project) {
+		try {
+			Path location = Paths.get(project.getDescription().getLocationURI());
+			Path path = location.resolve(".uroborosqlpluginrc.xml");
+			if (Files.exists(path)) {
+				return cachePluginConfig.get(path).orElseGet(() -> {
+					try (InputStream input = Files.newInputStream(path)) {
+						PluginConfig config = new XmlConfig(input, project);
+						return config;
+					}
+				});
+
+			}
+
+			return null;
+		} catch (IOException e) {
+		} catch (Exception e) {
+		}
+		return DefaultConfig.getInstance();
 	}
 
 	public static ClassesData getClassesData(IProject project, List<String> classNames) {
@@ -140,27 +254,6 @@ class Internal {
 			}
 		}
 		return new ClassesData(urls, loaderTargetClassNames, sourceTypes);
-	}
-
-	static class PackagesData extends AbsJavaData {
-		private final Collection<String> loaderTargetPackageNames;
-		private final Map<String, Collection<IType>> sourceTypes;
-
-		public PackagesData(Collection<URL> urls, Collection<String> loaderTargetPackageNames,
-				Map<String, Collection<IType>> sourceTypes) {
-			super(urls);
-			this.loaderTargetPackageNames = loaderTargetPackageNames;
-			this.sourceTypes = sourceTypes;
-		}
-
-		public Map<String, Collection<IType>> getSourceTypes() {
-			return sourceTypes;
-		}
-
-		public Collection<String> getLoaderTargetPackageNames() {
-			return loaderTargetPackageNames;
-		}
-
 	}
 
 	public static PackagesData getPackagesData(IProject project, List<String> packageNames) {
@@ -235,42 +328,20 @@ class Internal {
 				.findFirst();
 	}
 
-	public interface SQLFunction<R> {
+	public static <R> Optional<R> connect(IProject project, DbInfo dbInfo, SQLFunction<Connection, R> f) {
 
-		R apply(Connection conn) throws SQLException;
-	}
-
-	public static <R> Optional<R> connect(IProject project, String driver, String url, String user, String password,
-			List<String> classpaths,
-			SQLFunction<R> f) {
-
-		URL classUrl = getDriverUrlFromJavaProject(project, driver);
-		List<URL> urls = new ArrayList<>();
-		if (classUrl == null) {
-			if (classpaths.isEmpty()) {
-				return Optional.empty();
-			}
-		} else {
+		URL classUrl = getDriverUrlFromJavaProject(project, dbInfo.getDriver());
+		List<Object> urls = new ArrayList<>();
+		if (classUrl != null) {
 			urls.add(classUrl);
 		}
-		for (String classpath : classpaths) {
-			try {
-				urls.add(new URL(classpath));
-				continue;
-			} catch (MalformedURLException e) {
-			}
-
-			try {
-				urls.add(Paths.get(classpath).toUri().toURL());
-			} catch (MalformedURLException e) {
-				// ignore
-			}
+		urls.addAll(dbInfo.getClasspaths());
+		if (urls.isEmpty()) {
+			return Optional.empty();
 		}
-
 		try {
-			URLClassLoader classLoader = URLClassLoader.newInstance(urls.toArray(new URL[urls.size()]));
-			ServiceLoader<Driver> loader = ServiceLoader.load(Driver.class, classLoader);
-			loader.forEach(d -> {
+			ClassLoader classLoader = createCustomClassLoader(urls);
+			ServiceLoader.load(Driver.class, classLoader).forEach(d -> {
 				try {
 					DriverManager.registerDriver(new DriverShim(d));
 				} catch (Exception e) {
@@ -278,7 +349,8 @@ class Internal {
 				}
 			});
 
-			try (Connection connection = DriverManager.getConnection(url, user, password)) {
+			try (Connection connection = DriverManager.getConnection(dbInfo.getUrl(), dbInfo.getUser(),
+					dbInfo.getPassword())) {
 				return Optional.ofNullable(f.apply(connection));
 			} catch (SQLException e) {
 				e.printStackTrace();
@@ -297,30 +369,52 @@ class Internal {
 		}
 	}
 
-	private static URL getDriverUrlFromJavaProject(IProject project, String driver) {
-		if (driver == null) {
-			return null;
-		}
+	public static <R> R query(IProject project, Connection conn, String sql, Map<String, ?> params,
+			SQLFunction<ResultSet, R> fn) throws SQLException {
 
-		IJavaProject javaProject = JavaCore.create(project);
-		if (javaProject == null) {
-			return null;
-		}
 		try {
+			List<URL> urls = new ArrayList<>();
+			urls.add(Jdts.getURLFromJavaProject(project, "jp.co.future.uroborosql.SqlAgent")
+					.orElseThrow(() -> new Exception("not uroboroSQL project")));
 
-			IType type = javaProject.findType(driver);
+			//commons lang
+			urls.add(Jdts.getURLFromJavaProject(project, "org.apache.commons.lang3.StringUtils")
+					.orElseThrow(() -> new Exception("not uroboroSQL project")));
 
-			if (type == null) {
-				return null;
-			}
-			IClassFile cf = type.getClassFile();
-			if (cf == null) {
-				return null;
-			}
-			return cf.getPath().toFile().toURI().toURL();
-		} catch (JavaModelException | MalformedURLException e) {
-			return null;
+			//slf4j
+			urls.add(Jdts.getURLFromJavaProject(project, "org.slf4j.Logger")
+					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+
+			//javassist
+			urls.add(Jdts.getURLFromJavaProject(project, "javassist.ClassPool")
+					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+
+			//ognl
+			urls.add(Jdts.getURLFromJavaProject(project, "ognl.Ognl")
+					.orElseGet(() -> {
+						try {
+							return FileLocator
+									.toFileURL(Internal.class.getClassLoader().getResource("lib/ognl-3.1.15.jar"));
+						} catch (IOException e) {
+							throw new UncheckedIOException(e);
+						}
+					}));
+			CustomClassLoader classLoader = createCustomClassLoader(urls);
+			Class<Executor> executorType = classLoader.defineAndLoadClass(UroboroSQLExecutor.class);
+			Executor executor = executorType.getConstructor().newInstance();
+			return executor.execute(conn, sql, params, fn);
+		} catch (SQLException e) {
+			throw e;
+		} catch (Throwable e) {
+			e.printStackTrace();
+		} finally {
 		}
+		Executor executor = new JdbcExecutor();
+		return executor.execute(conn, sql, params, fn);
+	}
+
+	private static URL getDriverUrlFromJavaProject(IProject project, String driver) {
+		return Jdts.getURLFromJavaProject(project, driver).orElse(null);
 	}
 
 	static class DriverShim implements Driver {
@@ -371,4 +465,101 @@ class Internal {
 		}
 
 	}
+
+	public static class LabelMetadata {
+		private final int[] columns;
+
+		public LabelMetadata(int[] columns) {
+			this.columns = columns;
+		}
+
+		public LabelMetadata(int column) {
+			this(new int[] { column });
+		}
+
+		public LabelMetadata() {
+			this(new int[0]);
+		}
+
+		public LabelMetadata(List<Integer> columns) {
+			this(columns.stream().mapToInt(i -> i).toArray());
+		}
+
+		public String getString(ResultSet rs) throws SQLException {
+			StringJoiner joiner = new StringJoiner(" ");
+			for (int column : columns) {
+				joiner.add(rs.getString(column));
+			}
+			String s = joiner.toString();
+			return s.isEmpty() ? null : s;
+		}
+
+		public Object getObject(ResultSet rs) throws SQLException {
+			if (columns.length == 0) {
+				return null;
+			}
+			if (columns.length == 1) {
+				return rs.getObject(columns[0]);
+			}
+			return getString(rs);
+		}
+	}
+
+	public static LabelMetadata[] getLabelMetadatas(ResultSet rs, String[][] targetLabels) throws SQLException {
+		ResultSetMetaData metaData = rs.getMetaData();
+		int count = metaData.getColumnCount();
+		Map<String, List<Integer>> colLabels = new HashMap<>();
+		for (int i = 0; i < count; i++) {
+			colLabels.computeIfAbsent(metaData.getColumnLabel(i + 1), k -> new ArrayList<>()).add(i + 1);
+		}
+		LabelMetadata[] labels = new LabelMetadata[targetLabels.length + 1];
+
+		for (int i = 0; i < targetLabels.length; i++) {
+			String[] targetLabel = targetLabels[i];
+			labels[i] = buildLabel(colLabels, targetLabel);
+		}
+
+		labels[labels.length - 1] = new LabelMetadata(colLabels.values().stream()
+				.flatMap(List::stream)
+				.mapToInt(i -> i)
+				.toArray());
+
+		return labels;
+	}
+
+	private static LabelMetadata buildLabel(Map<String, List<Integer>> colLabels, String[] targetLabel) {
+		for (String label : targetLabel) {
+			for (Map.Entry<String, List<Integer>> e : colLabels.entrySet()) {
+				String k = e.getKey().replaceAll("_", "");
+				String l = label.replaceAll("_", "");
+				if (k.equalsIgnoreCase(l)) {
+					LabelMetadata meta = new LabelMetadata(e.getValue());
+					colLabels.remove(e.getKey());
+					return meta;
+				}
+			}
+		}
+
+		//見つからない場合一番最初
+		Optional<Integer> min = colLabels.values().stream()
+				.flatMap(List::stream)
+				.min(Comparator.naturalOrder());
+
+		if (!min.isPresent()) {
+			return new LabelMetadata();
+		}
+
+		for (Map.Entry<String, List<Integer>> e : colLabels.entrySet()) {
+			if (e.getValue().contains(min.get())) {
+				e.getValue().remove(min.get());
+				if (e.getValue().isEmpty()) {
+					colLabels.remove(e.getKey());
+				}
+				break;
+			}
+		}
+
+		return new LabelMetadata(min.get());
+	}
+
 }

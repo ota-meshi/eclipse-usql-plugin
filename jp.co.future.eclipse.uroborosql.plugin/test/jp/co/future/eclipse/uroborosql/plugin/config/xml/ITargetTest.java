@@ -6,6 +6,7 @@ import static org.junit.Assert.*;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -112,6 +113,30 @@ public class ITargetTest {
 		Element root = document.getDocumentElement();
 
 		assertThat(ITarget.get(root, "c1", "c2", "c3", "tgt").value().get(), is("v"));
+
+	}
+
+	@Test
+	public void test01() throws ParserConfigurationException, SAXException, IOException {
+		Document document =
+
+				Xml.parse("<ROOT>"
+						+ "	<db name=\"1\">"
+						+ "		<url>a</url>"
+						+ "	</db>"
+						+ "	<db name=\"2\">"
+						+ "		<url>b</url>"
+						+ "	</db>"
+						+ "</ROOT>");
+		Element root = document.getDocumentElement();
+
+		List<AttributableValue> dbs = ITarget.get(root, "db").list();
+
+		assertThat(dbs.get(0).attr("name").get(), is("1"));
+		assertThat(dbs.get(1).attr("name").get(), is("2"));
+
+		assertThat(ITarget.get(dbs.get(0).element().get(), "url").value().get(), is("a"));
+		assertThat(ITarget.get(dbs.get(1).element().get(), "url").value().get(), is("b"));
 
 	}
 }

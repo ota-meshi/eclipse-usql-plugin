@@ -4,111 +4,86 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.StringJoiner;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import org.eclipse.jface.text.contentassist.CompletionProposal;
-import org.eclipse.jface.text.contentassist.ICompletionProposal;
-
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQLUtils;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
-public class TestContentAssistProcessor implements PartContentAssistProcessor {
-	private final Function<DocumentPoint, OptionalInt> test;
-	private final String[] replacementLines;;
-	private final int cursorPosition;
-	private final String displayString;
-	private final String additionalProposalInfo;
+public class TestContentAssistProcessor implements IPartContentAssistProcessor {
 
-	public TestContentAssistProcessor(Function<DocumentPoint, OptionalInt> test, String replacementString,
-			int cursorPosition,
-			String displayString, String additionalProposalInfo) {
-		this(test, new String[] { replacementString }, cursorPosition, displayString, additionalProposalInfo);
+	private final Function<DocumentPoint, OptionalInt> test;
+
+	private final String displayString;
+	private final Supplier<String> additionalProposalInfo;
+
+	private final Supplier<Replacement> replacementSupplier;
+	private Replacement replacement;
+
+	private Replacement getReplacement() {
+		return replacement != null ? replacement : (replacement = replacementSupplier.get());
 	}
 
-	public TestContentAssistProcessor(Function<DocumentPoint, OptionalInt> test, String[] replacementLines,
-			int cursorPosition,
-			String displayString, String additionalProposalInfo) {
+	public TestContentAssistProcessor(Function<DocumentPoint, OptionalInt> test,
+			Supplier<Replacement> replacementSupplier,
+			String displayString, Supplier<String> additionalProposalInfo) {
 		this.test = test;
-		this.replacementLines = replacementLines;
-		this.cursorPosition = cursorPosition;
 		this.displayString = displayString;
 		this.additionalProposalInfo = additionalProposalInfo;
+		this.replacementSupplier = replacementSupplier;
 	}
 
 	@Override
-	public Optional<ICompletionProposal> computeCompletionProposal(DocumentPoint point) {
+	public Optional<IPointCompletionProposal> computeCompletionProposal(DocumentPoint point) {
 		OptionalInt diffPoint = test.apply(point);
 		if (!diffPoint.isPresent()) {
 			return Optional.empty();
 		}
 
-		int replacementLength = point.getDocument().getUserOffset() - point.point();
-
-		IReplacement replacement = buildReplacement(point);
-
-		return Optional.of(new CompletionProposal(replacement.getReplacementString(), point.point(), replacementLength,
-				replacement.getCursorPosition(),
-				UroboroSQLUtils.getImage(),
-				displayString,
-				/* contextInformation */null,
-				additionalProposalInfo));
+		return Optional.of(new CompletionProposal(diffPoint.getAsInt(),
+				() -> {
+					int replacementLength = point.getDocument().getUserOffset() - point.point();
+					IndentReplacement indentReplacement = buildIndentReplacement(point, getReplacement());
+					return new CompletionProposal.DocReplacement(indentReplacement.getReplacementString(),
+							point.point(), replacementLength,
+							indentReplacement.getCursorPosition());
+				},
+				displayString, additionalProposalInfo.get()));
 	}
 
-	private interface IReplacement {
-		String getReplacementString();
-
-		int getCursorPosition();
-	}
-
-	private final IReplacement singleReplacement = new IReplacement() {
-
-		@Override
-		public String getReplacementString() {
-			return replacementLines[0];
-		}
-
-		@Override
-		public int getCursorPosition() {
-			return cursorPosition;
-		}
-	};
-
-	private static class Replacement implements IReplacement {
+	private static class IndentReplacement {
 		private final String replacementString;
 		private final int cursorPosition;
 
-		Replacement(String replacementString, int cursorPosition) {
+		IndentReplacement(String replacementString, int cursorPosition) {
 			this.replacementString = replacementString;
 			this.cursorPosition = cursorPosition;
 		}
 
-		@Override
 		public String getReplacementString() {
 			return replacementString;
 		}
 
-		@Override
 		public int getCursorPosition() {
 			return cursorPosition;
 		}
 	}
 
-	private IReplacement buildReplacement(DocumentPoint point) {
-		if (replacementLines.length == 1) {
-			return singleReplacement;
+	private static IndentReplacement buildIndentReplacement(DocumentPoint point, Replacement replacement) {
+		if (replacement.replacementStrings.length == 1) {
+			return new IndentReplacement(replacement.replacementStrings[0], replacement.cursorPosition);
 		}
 
-		int cursorPosition = this.cursorPosition;
+		int cursorPosition = replacement.cursorPosition;
 		int linesTotalLength = 0;
 		String indent = point.getIndent();
 		StringJoiner joiner = new StringJoiner("\n" + indent);
-		for (String replacementLine : replacementLines) {
+		for (String replacementLine : replacement.replacementStrings) {
 			linesTotalLength += replacementLine.length() + 1/*CR*/;
-			if (linesTotalLength <= this.cursorPosition) {
+			if (linesTotalLength <= replacement.cursorPosition) {
 				cursorPosition += indent.length();
 			}
 			joiner.add(replacementLine);
 		}
-		return new Replacement(joiner.toString(), cursorPosition);
+		return new IndentReplacement(joiner.toString(), cursorPosition);
 	}
 
 }

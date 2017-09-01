@@ -19,8 +19,8 @@ import org.xml.sax.SAXException;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.TestUtil;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.TestUtil.M;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.TestUtil.PrintMap;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.Const;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.IVariable;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.IVariable;
 
 public class XmlConfigTest {
 	static class Consts extends PrintMap<String, IVariable> {

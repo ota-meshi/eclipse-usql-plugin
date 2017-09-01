@@ -13,9 +13,16 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.TestUtil.StringList;
 
 public class ContentAssistTestUtil {
 	public static List<String> computeCompletionResults(String doc) {
+		return computeCompletionResults(doc, doc.length());
+	}
+
+	public static List<String> computeCompletionResults(String doc, int offset) {
+		if (offset < 0) {
+			offset = doc.length() + offset;
+		}
+
 		UroboroSQLContentAssistProcessor assistProcessor = new UroboroSQLContentAssistProcessor();
 		ITextViewer textViewer = TestUtil.createTextViewer(doc);
-		int offset = doc.length();
 
 		ICompletionProposal[] completionProposals = assistProcessor.computeCompletionProposals(textViewer, offset);
 

@@ -3,30 +3,61 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser;
 import java.util.Objects;
 import java.util.Optional;
 
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.SqlConstants;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Iterables;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Iterators;
 
-public abstract class Token {
+public class Token {
 	private final TokenType type;
+	private final int start;
+	private final int end;
+	private final Document document;
+	private String string;
 
-	public Token(TokenType type) {
+	public Token(Document document, int start, int end, TokenType type) {
+		this.document = document;
 		this.type = type;
+		this.start = start;
+		this.end = end;
 	}
 
-	public abstract DocumentPoint toDocumentPoint();
+	public int getStart() {
+		return start;
+	}
 
-	public abstract int getStart();
-
-	public abstract int getEnd();
+	public int getEnd() {
+		return end;
+	}
 
 	public TokenType getType() {
 		return type;
 	}
 
-	public abstract String getString();
+	public boolean isIn(int index) {
+		return start <= index && index <= end;
+	}
 
-	public abstract boolean isIn(int index);
+	public DocumentPoint toDocumentPoint() {
+		return new DocumentPoint(document, getStart());
+	}
 
-	public abstract Optional<Token> getNextToken();
+	public String getString() {
+		return string != null ? string : (string = document.substring(getStart(), end + 1));
+	}
+
+	public Optional<Token> getNextToken() {
+		return document.getTokens().stream()
+				.filter(t -> t.isIn(end + 1))
+				.findFirst();
+	}
+
+	public Optional<Token> getPrevToken() {
+		return document.getTokens().stream()
+				.filter(t -> t.isIn(start - 1))
+				.findFirst();
+	}
 
 	@Override
 	public String toString() {
@@ -62,4 +93,55 @@ public abstract class Token {
 		return true;
 	}
 
+	public static Iterable<Token> getPrevSiblings(Token token) {
+		return Iterables.asIterables(() -> Iterators.asIterator(token, Token::getPrevSibling));
+	}
+
+	public static Optional<Token> getPrevSibling(Token token) {
+		if (token.getType() == TokenType.SYMBOL && token.getString().equals(")")) {
+			return getOpenParenthesis(token);
+		}
+		Optional<Token> prev = token.getPrevToken();
+		while (prev.isPresent()) {
+			Token prevToken = prev.get();
+			if (prevToken.getType().isSqlEnable()) {
+				if (prevToken.getType() == TokenType.SYMBOL) {
+					String s = prevToken.getString();
+					if (s.equals("(")) {
+						return Optional.empty();
+					}
+				}
+				return prev;
+			}
+			prev = prevToken.getPrevToken();
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<Token> getOpenParenthesis(Token token) {
+		Optional<Token> prev = token.getPrevToken();
+		while (prev.isPresent()) {
+			Token prevToken = prev.get();
+			if (prevToken.getType().isSqlEnable()) {
+				if (prevToken.getType() == TokenType.SYMBOL) {
+					String s = prevToken.getString();
+					if (s.equals("(")) {
+						return prev;
+					} else if (s.equals(")")) {
+						Optional<Token> open = getOpenParenthesis(prevToken);
+						if (!open.isPresent()) {
+							return Optional.empty();
+						}
+						prevToken = open.get();
+					}
+				}
+			}
+			prev = prevToken.getPrevToken();
+		}
+		return Optional.empty();
+	}
+
+	public boolean isReservedWord() {
+		return getType() == TokenType.SQL_TOKEN && SqlConstants.SQL_RESERVED_WORDS.contains(getString().toUpperCase());
+	}
 }

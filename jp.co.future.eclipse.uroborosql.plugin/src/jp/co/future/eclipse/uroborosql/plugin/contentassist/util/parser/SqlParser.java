@@ -19,10 +19,10 @@ public class SqlParser {
 		while (scanner.hasNext()) {
 			char c = scanner.next();
 			TokenType type = TokenType.startOf(c, scanner);
-			TokenImpl token = new TokenImpl(document, scanner.index(), type);
-
+			int start = scanner.index();
 			type.scanEnd(scanner);
-			token.setEnd(scanner.index());
+			int end = scanner.index();
+			Token token = new Token(document, start, end, type);
 
 			result.add(token);
 		}

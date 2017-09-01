@@ -4,21 +4,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator;
+import java.util.stream.Collectors;
 
-import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextViewer;
 import org.eclipse.jface.text.contentassist.ICompletionProposal;
 import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.graphics.Point;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.MCommentTypes;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.ContentAssistProcessors;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPointCompletionProposal;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
 
 public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor {
 	private final IContentAssistProcessor original;
@@ -46,7 +44,12 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 		return Integer.compare(c1, c2);
 	}
 
-	static int compareCompletionProposal(ICompletionProposal o1, ICompletionProposal o2) {
+	static int compareCompletionProposal(IPointCompletionProposal o1, IPointCompletionProposal o2) {
+		int pcomp = Integer.compare(o1.getLazyPoint(), o2.getLazyPoint());
+		if (pcomp != 0) {
+			return pcomp;
+		}
+
 		PrimitiveIterator.OfInt cs1 = o1.getDisplayString().codePoints().filter(c -> !Character.isWhitespace(c))
 				.iterator();
 		PrimitiveIterator.OfInt cs2 = o2.getDisplayString().codePoints().filter(c -> !Character.isWhitespace(c))
@@ -74,8 +77,9 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 
 		PluginConfig config = PluginConfig.load();
 
-		List<ICompletionProposal> list = new ArrayList<>(computeUroboroSQLCompletionProposals(viewer, offset, config));
-		list.sort(UroboroSQLContentAssistProcessor::compareCompletionProposal);
+		List<ICompletionProposal> list = computeUroboroSQLCompletionProposals(viewer, offset, config).stream()
+				.sorted(UroboroSQLContentAssistProcessor::compareCompletionProposal)
+				.collect(Collectors.toCollection(ArrayList::new));
 		if (original != null) {
 			Collections.addAll(list, original.computeCompletionProposals(viewer, offset));
 		}
@@ -83,78 +87,24 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 		return list.toArray(new ICompletionProposal[list.size()]);
 	}
 
-	private List<ICompletionProposal> computeUroboroSQLCompletionProposals(ITextViewer viewer, int offset,
+	private List<IPointCompletionProposal> computeUroboroSQLCompletionProposals(ITextViewer viewer, int offset,
 			PluginConfig config) {
 		try {
 			Document document = new Document(viewer.getDocument(), offset);
 			Token userOffsetToken = document.getUserOffsetToken();
-			if (userOffsetToken.getType() == TokenType.M_COMMENT) {
-				return wrapSignature(
-						MCommentTypes.computeCompletionProposals(userOffsetToken.toDocumentPoint(), config));
+			ContentAssistProcessors contentAssistProcessors = ContentAssistProcessors.of(userOffsetToken);
+			List<IPointCompletionProposal> completionProposals = contentAssistProcessors.computeCompletionProposals(
+					userOffsetToken, false,
+					config);
+			if (completionProposals.size() <= 3 && contentAssistProcessors.possibilityLazy(userOffsetToken)) {
+				completionProposals = contentAssistProcessors.computeCompletionProposals(userOffsetToken, true, config);
 			}
-			int a;
-			// TODO
-			return Collections.emptyList();
+			return completionProposals;
 
 		} catch (Exception e) {
 			e.printStackTrace();
 			return Collections.emptyList();
 		}
-	}
-
-	private List<ICompletionProposal> wrapSignature(List<ICompletionProposal> computeUroboroSQLCompletionProposals) {
-		List<ICompletionProposal> result = new ArrayList<>();
-		for (ICompletionProposal completionProposal : computeUroboroSQLCompletionProposals) {
-			result.add(wrapSignature(completionProposal));
-		}
-		return result;
-	}
-
-	private static class UsqlCompletionProposal implements ICompletionProposal {
-		private final ICompletionProposal completionProposal;
-
-		public UsqlCompletionProposal(ICompletionProposal completionProposal) {
-			this.completionProposal = completionProposal;
-		}
-
-		@Override
-		public Point getSelection(IDocument document) {
-			return completionProposal.getSelection(document);
-		}
-
-		@Override
-		public Image getImage() {
-			return completionProposal.getImage();
-		}
-
-		@Override
-		public String getDisplayString() {
-			return completionProposal.getDisplayString();
-		}
-
-		@Override
-		public IContextInformation getContextInformation() {
-			return completionProposal.getContextInformation();
-		}
-
-		@Override
-		public String getAdditionalProposalInfo() {
-			String base = completionProposal.getAdditionalProposalInfo();
-
-			return (base != null ? base : "")
-					+ "<br>"
-					+ "<br>"
-					+ "- uroboroSQL -";
-		}
-
-		@Override
-		public void apply(IDocument document) {
-			completionProposal.apply(document);
-		}
-	}
-
-	private ICompletionProposal wrapSignature(ICompletionProposal completionProposal) {
-		return new UsqlCompletionProposal(completionProposal);
 	}
 
 	@Override
