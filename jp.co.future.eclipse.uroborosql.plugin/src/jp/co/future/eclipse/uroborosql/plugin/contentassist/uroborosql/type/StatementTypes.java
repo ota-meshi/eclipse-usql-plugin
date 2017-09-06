@@ -259,30 +259,109 @@ public enum StatementTypes implements IType {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			int a;
-			return Collections.emptyList();//TODO
+
+			if (tokenStart.getToken().getType() == TokenType.WHITESPACE) {
+				Optional<ValuesTokenSet> valuesTokenSet = getValuesTokenSet(tokenStart);
+				if (valuesTokenSet.isPresent()) {
+					Optional<Token> pairToken = calcPairToken(valuesTokenSet.get(), tokenStart.getToken());
+					if (pairToken.isPresent()) {
+						String s = buildValuesValue(pairToken.get());
+						return Arrays.asList(new CompletionProposal(
+								new DocReplacement(s, tokenStart.point(), 0, OptionalInt.empty(), false), s,
+								"insert pair [" + pairToken.get().getString() + "]"));
+					}
+				}
+			}
+
+			return Collections.emptyList();
 		}
+
+		private Optional<Token> calcPairToken(ValuesTokenSet valuesTokenSet, Token target) {
+			int index = indexOfValue(valuesTokenSet.valuesOpen, target);
+
+			int colIndex = 0;
+			for (TokenRange range : Token.getInParenthesis(valuesTokenSet.colsParenthesis.getStart())) {
+				if (colIndex == index) {
+					return range.getBetweenTokens().filter(t -> t.getType() == TokenType.SQL_TOKEN).findLast();
+				}
+				colIndex++;
+			}
+			return Optional.empty();
+		}
+
+		private int indexOfValue(Token open, Token target) {
+			int index = 0;
+			for (TokenRange range : Token.getInParenthesis(open)) {
+				if (target.isBefore(range.getStart()) || target.equals(range.getStart())) {
+					return index;
+				}
+				index++;
+			}
+			return index - 1;
+		}
+
+		private Optional<Token> findValuesToken(Token token) {
+			while (token != null) {
+				Token first = Token.getPrevSiblings(token).findLast().orElse(token);
+
+				Token valuesOpenCand = first.getPrevToken().orElse(null);
+				if (valuesOpenCand == null || !Token.isOpenParenthesis(valuesOpenCand)) {
+					token = valuesOpenCand;
+					continue;
+				}
+
+				Token valuesToken = Token.getPrevSiblings(valuesOpenCand).filter(t -> t.getType().isSqlEnable())
+						.findFirst().orElse(null);
+				if (valuesToken == null || !Token.isValuesWord(valuesToken)) {
+					token = valuesOpenCand;
+					continue;
+				}
+				return Optional.of(valuesToken);
+			}
+			return Optional.empty();
+		}
+
+		private Optional<ValuesTokenSet> getValuesTokenSet(DocumentPoint tokenStart) {
+			Token valuesToken = findValuesToken(tokenStart.getToken()).orElse(null);
+			if (valuesToken == null) {
+				return Optional.empty();
+			}
+
+			Token valuesOpenCand = Token.getNextSiblings(valuesToken).filter(t -> t.getType().isSqlEnable()).findFirst()
+					.orElse(null);
+			if (valuesOpenCand == null || !Token.isOpenParenthesis(valuesOpenCand)) {
+				return Optional.empty();
+		}
+
+			TokenRange colsParenthesis = findInsertParenthesis(valuesToken).orElse(null);
+			if (colsParenthesis == null) {
+				return Optional.empty();
+			}
+
+			return Optional.of(new ValuesTokenSet(valuesToken, colsParenthesis, valuesOpenCand));
+		}
+
 	},
 	;
 
-	public static Optional<StatementTypes> within(Token token) {
-		Token target = token;
-		while (true) {
-			for (Token prev : Token.getPrevSiblings(target)) {
-				if (prev.getType() == TokenType.SQL_TOKEN) {
-					for (StatementTypes type : StatementTypes.values()) {
-						if (type.isToken(prev)) {
-							return Optional.of(type);
-						}
+	private final Set<ContentAssistProcessors> targetsContentAssistProcessors;
+
+	StatementTypes(ContentAssistProcessors... targets) {
+		if (targets.length == 0) {
+			targetsContentAssistProcessors = EnumSet.of(ContentAssistProcessors.TOKEN);
+		} else {
+			targetsContentAssistProcessors = EnumSet.copyOf(Arrays.asList(targets));
 					}
 				}
-				target = prev;
+
+	public static Optional<StatementTypes> within(Token token, ContentAssistProcessors contentAssistProcessors) {
+		for (Token prev : Token.getPrevSiblingOrParents(token)
+				.filter(p -> p.getType() == TokenType.SQL_TOKEN)) {
+			for (StatementTypes type : StatementTypes.values()) {
+				if (type.targetsContentAssistProcessors.contains(contentAssistProcessors) && type.isToken(prev)) {
+					return Optional.of(type);
 			}
-			Optional<Token> parent = target.getPrevToken();
-			if (!parent.isPresent()) {
-				break;
 			}
-			target = parent.get();
 		}
 		return Optional.empty();
 	}
