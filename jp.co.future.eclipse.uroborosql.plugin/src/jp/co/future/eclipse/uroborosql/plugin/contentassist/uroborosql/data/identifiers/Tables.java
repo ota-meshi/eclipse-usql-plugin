@@ -4,6 +4,7 @@ import java.util.AbstractSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 
 public class Tables extends AbstractSet<Table> {
 	private final Map<String, Table> map = new HashMap<>();
@@ -21,7 +22,7 @@ public class Tables extends AbstractSet<Table> {
 	@Override
 	public boolean add(Table e) {
 
-		return map.compute(e.getName(), (k, o) -> {
+		return map.compute(e.getName().toLowerCase(), (k, o) -> {
 			if (o == null) {
 				return e;
 			}
@@ -45,5 +46,9 @@ public class Tables extends AbstractSet<Table> {
 
 	private boolean isEmpty(String s) {
 		return s == null || s.isEmpty();
+	}
+
+	public Optional<Table> get(String tableName) {
+		return Optional.ofNullable(map.get(tableName.toLowerCase()));
 	}
 }
