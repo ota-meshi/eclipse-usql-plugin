@@ -3,6 +3,7 @@ package jp.co.future.eclipse.uroborosql.plugin.config;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -13,6 +14,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -104,15 +106,7 @@ public class XmlConfig implements PluginConfig {
 
 	@Override
 	public Tables getTables(String text, boolean lazy) {
-		String sMinlength = getTarget("contentassist", "tables", "minlength").value().orElse("3");
-		int minlength;
-		try {
-			minlength = Integer.parseInt(sMinlength);
-		} catch (NumberFormatException e) {
-			minlength = 3;
-		}
-
-		if (text.length() < minlength) {
+		if (!testTableLength(text)) {
 			return new Tables();
 		}
 
@@ -125,6 +119,32 @@ public class XmlConfig implements PluginConfig {
 			tables.addAll(lazyfindTablesFromDb(text));
 		}
 		return tables;
+	}
+
+	private boolean testTableLength(String text) {
+		Optional<String> optMin = getTarget("contentassist", "tables", "minlength").value();
+		if (optMin.isPresent()) {
+			int minlength;
+			try {
+				minlength = Integer.parseInt(optMin.get());
+				if (text.length() < minlength) {
+					return false;
+				}
+			} catch (NumberFormatException e) {
+			}
+		}
+		optMin = getTarget("contentassist", "tables", "minbytes").value();
+		if (optMin.isPresent()) {
+			int minbytes;
+			try {
+				minbytes = Integer.parseInt(optMin.get());
+				if (text.getBytes(StandardCharsets.UTF_8).length < minbytes) {
+					return false;
+				}
+			} catch (NumberFormatException e) {
+			}
+		}
+		return text.length() >= 3 || text.getBytes(StandardCharsets.UTF_8).length >= 6;
 	}
 
 	@Override

@@ -58,7 +58,8 @@ public class StatementTypesTest {
 
 		assertThat(result, is(Arrays.asList(
 				"SELECT c M_MENU|\t-- menu data",
-				"SELECT c M_MENU_BK|\t-- backup menu data")));
+				"SELECT c M_MENU_BK|\t-- backup menu data",
+				"SELECT c MST_MENU|\t-- メニューマスタ")));
 	}
 
 	@Test
@@ -92,7 +93,8 @@ public class StatementTypesTest {
 
 		assertThat(result, is(Arrays.asList(
 				"select * from M_MENU|\t-- menu data",
-				"select * from M_MENU_BK|\t-- backup menu data"
+				"select * from M_MENU_BK|\t-- backup menu data",
+				"select * from MST_MENU|\t-- メニューマスタ"
 
 		)));
 
@@ -101,7 +103,8 @@ public class StatementTypesTest {
 
 		assertThat(result, is(Arrays.asList(
 				"SELECT * FROM M_MENU|\t-- menu data",
-				"SELECT * FROM M_MENU_BK|\t-- backup menu data"
+				"SELECT * FROM M_MENU_BK|\t-- backup menu data",
+				"SELECT * FROM MST_MENU|\t-- メニューマスタ"
 
 		)));
 	}
@@ -177,7 +180,7 @@ public class StatementTypesTest {
 	}
 
 	@Test
-	public void testInsertTable() {
+	public void testInsertTable01() {
 
 		List<String> result = computeCompletionResults("insert /**/ into M_M", config);
 		result.forEach(System.out::println);
@@ -187,6 +190,20 @@ public class StatementTypesTest {
 				"insert /**/ into M_MENU_BK|\t-- backup menu data",
 				"insert /**/ into \n\tM_MENU\t-- menu data\n(\n\tID\t\t\t\t-- menu id\n,\tCAPTION\t\t\t-- menu caption\n,\tDESCRIPTION\n,\tEX_CODE1\t\t-- extra code #1\n,\tEX_CODE2\n,\tEX_CODE3\n,\tEX_CODE4\n,\tEX_CODE5\n,\tE_MAIL\n)|",
 				"insert /**/ into \n\tM_MENU_BK\t-- backup menu data\n(\n\tID\t\t\t\t-- menu id\n,\tCAPTION\t\t\t-- menu caption\n,\tDESCRIPTION\n)|"
+
+		)));
+	}
+
+	@Test
+	public void testInsertTable02() {
+
+		List<String> result = computeCompletionResults("insert /**/ into メニ", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+
+				"insert /**/ into MST_MENU|\t-- メニューマスタ",
+				"insert /**/ into \n\tMST_MENU\t-- メニューマスタ\n(\n\tID\n,\tCAPTION\n,\tDESCRIPTION\n)|"
 
 		)));
 	}
@@ -323,6 +340,8 @@ public class StatementTypesTest {
 				"CREATE TABLE M_MENU (ID VARCHAR(10),CAPTION VARCHAR(30),DESCRIPTION VARCHAR(30),EX_CODE1 VARCHAR(10),EX_CODE2 VARCHAR(10),EX_CODE3 VARCHAR(10),EX_CODE4 VARCHAR(10),EX_CODE5 VARCHAR(10),E_MAIL VARCHAR(120))");
 		config.sql("CREATE TABLE M_MENU_BK (ID VARCHAR(10),CAPTION VARCHAR(30),DESCRIPTION VARCHAR(30))");
 		config.sql("CREATE TABLE M_USER (ID VARCHAR(10),F_NAME VARCHAR(30),L_NAME VARCHAR(30),E_MAIL VARCHAR(120))");
+		config.sql("CREATE TABLE MST_MENU (ID VARCHAR(10),CAPTION VARCHAR(30),DESCRIPTION VARCHAR(30))");
+
 		config.sql("COMMENT ON TABLE M_MENU IS 'menu data'");
 		config.sql("COMMENT ON TABLE M_MENU_BK IS 'backup menu data'");
 		config.sql("COMMENT ON TABLE M_USER IS 'user data'");
@@ -337,6 +356,8 @@ public class StatementTypesTest {
 		config.sql("COMMENT ON COLUMN M_USER.F_NAME IS 'user first name'");
 		config.sql("COMMENT ON COLUMN M_USER.L_NAME IS 'user last name'");
 		config.sql("COMMENT ON COLUMN M_USER.E_MAIL IS 'e-mail addr'");
+
+		config.sql("COMMENT ON TABLE MST_MENU IS 'メニューマスタ'");
 
 		return config;
 	}
@@ -359,10 +380,24 @@ public class StatementTypesTest {
 				"					INFORMATION_SCHEMA.TABLES   AS TBL\r\n" +
 				"				WHERE\r\n" +
 				"					TBL.TABLE_SCHEMA	=       SCHEMA()\r\n" +
-				"				AND	TBL.TABLE_NAME		LIKE	'%' || /*tableName*/'tableName' || '%'\r\n" +
+				"				AND	TBL.TABLE_NAME		LIKE	/*TABLE_NAME*/'tableName' || '%'\r\n" +
 				"				ORDER BY\r\n" +
 				"				    TBL.TABLE_NAME" +
 				"			</sql>" +
+				"			<lazySql>" +
+				"				SELECT\r\n" +
+				"				 	TBL.TABLE_NAME  AS TABLE_NAME\r\n" +
+				"				,	TBL.REMARKS     AS COMMENTS\r\n" +
+				"				FROM\r\n" +
+				"					INFORMATION_SCHEMA.TABLES   AS TBL\r\n" +
+				"				WHERE\r\n" +
+				"					TBL.TABLE_SCHEMA	=       SCHEMA()\r\n" +
+				"				AND	(TBL.TABLE_NAME		LIKE	'%' || /*TABLE_NAME*/'tableName' || '%'\r\n" +
+				"					OR	TBL.REMARKS			LIKE	'%' || /*tableName*/'tableName' || '%'\r\n" +
+				"					)\r\n" +
+				"				ORDER BY\r\n" +
+				"				    TBL.TABLE_NAME" +
+				"			</lazySql>" +
 				"		</tables>" +
 				"		<columns>" +
 				"			<sql>" +

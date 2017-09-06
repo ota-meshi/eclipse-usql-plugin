@@ -46,7 +46,7 @@ public enum ContentAssistProcessors {
 
 		@Override
 		public boolean possibilityLazy(Token userOffsetToken) {
-			return userOffsetToken.getString().length() > 3;
+			return true;
 		}
 	},
 	WHITESPACE {
@@ -63,7 +63,7 @@ public enum ContentAssistProcessors {
 
 		@Override
 		public boolean possibilityLazy(Token userOffsetToken) {
-			return userOffsetToken.getString().length() > 3;
+			return false;
 		}
 	},
 	NONE {
