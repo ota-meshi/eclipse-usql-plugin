@@ -68,7 +68,8 @@ public enum MCommentTypes implements IType {
 			}
 
 			String text = "/* " + config.getSqlId() + " */";
-			TokenContentAssistProcessor assistProcessor = new TokenContentAssistProcessor(text, () -> "SQL ID token");
+			TokenContentAssistProcessor assistProcessor = new TokenContentAssistProcessor(text, false,
+					() -> "SQL ID token");
 
 			return assistProcessor.computeCompletionProposal(commentStart).map(Arrays::asList)
 					.orElse(Collections.emptyList());
