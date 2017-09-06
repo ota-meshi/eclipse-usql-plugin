@@ -72,14 +72,6 @@ public class Token {
 		return getType().getNormalizeString(getString());
 	}
 
-	public boolean isBefore(Token token) {
-		return start < token.start;
-	}
-
-	public boolean isAfter(Token token) {
-		return start > token.start;
-	}
-
 	@Override
 	public String toString() {
 		return getString();
@@ -275,7 +267,7 @@ public class Token {
 			if (start == null) {
 				return Optional.empty();
 			}
-			if (close != null && (close.isBefore(start) || close.equals(start))) {
+			if (close != null && close.getStart() <= start.getStart()) {
 				return Optional.empty();
 			}
 

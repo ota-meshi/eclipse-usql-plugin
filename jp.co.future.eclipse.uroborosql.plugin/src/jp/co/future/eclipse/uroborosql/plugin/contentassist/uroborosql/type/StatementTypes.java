@@ -231,7 +231,7 @@ public enum StatementTypes implements IType {
 		private List<String> buildValues(TokenRange insColsParenthesis,
 				Function<String, String> reservedCaseFormatter) {
 			List<String> result = new ArrayList<>();
-			result.add(reservedCaseFormatter.apply("Values ("));
+			result.add(reservedCaseFormatter.apply("Values") + " (");
 
 			List<Pair<Token, Token>> ids = Token.getInParenthesis(insColsParenthesis.getStart())
 					.map(range -> findInsertidentifier(range).orElse(null))
@@ -308,7 +308,7 @@ public enum StatementTypes implements IType {
 		private int indexOfValue(Token open, Token target) {
 			int index = 0;
 			for (TokenRange range : Token.getInParenthesis(open)) {
-				if (target.isBefore(range.getStart()) || target.equals(range.getStart())) {
+				if (target.getStart() <= range.getStart().getStart()) {
 					return index;
 				}
 				index++;
@@ -377,12 +377,12 @@ public enum StatementTypes implements IType {
 		if (id == null) {
 			return Optional.empty();
 		}
-		int commentIndex = tokens.filter(t -> t.getType() == TokenType.L_COMMENT).findLastIndex().orElse(-1);
+		int commentIndex = tokens.findLastIndex(t -> t.getType() == TokenType.L_COMMENT).orElse(-1);
 		if (commentIndex == -1) {
 			return Optional.of(new Pair<>(id, null));
 		}
 		Token comment = tokens.get(commentIndex);
-		if (comment == null || comment.isAfter(id)) {
+		if (comment == null || comment.getStart() < id.getStart()) {
 			return Optional.of(new Pair<>(id, null));
 		}
 		//コメントより後ろに記述が無いか
@@ -510,7 +510,7 @@ public enum StatementTypes implements IType {
 		}
 
 		if (tokens.getE2() != null) {
-			s = Strings.rightTabs(s, maxWidths) + "\t" + tokens.getE2().getString();
+			s = Strings.rightTabs(s, maxWidths) + "\t" + tokens.getE2().getString().trim();
 		}
 		return s;
 	}
