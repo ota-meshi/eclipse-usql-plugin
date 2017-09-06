@@ -249,6 +249,7 @@ public class Token {
 	}
 
 	public static FluentIterable<TokenRange> getInParenthesis(Token openParenthesis) {
+		Token close = getCloseParenthesis(openParenthesis).orElse(null);
 		Token startToken = openParenthesis.getNextToken().orElse(null);
 		if (startToken == null) {
 			return FluentIterable.empty();
@@ -274,6 +275,10 @@ public class Token {
 			if (start == null) {
 				return Optional.empty();
 			}
+			if (close != null && (close.isBefore(start) || close.equals(start))) {
+				return Optional.empty();
+			}
+
 			Token end = Token.getNextSiblings(start)
 					.filter(p -> Token.isComma(p))
 					.findFirst()

@@ -221,7 +221,7 @@ public class StatementTypesTest {
 		result.forEach(System.out::println);
 
 		assertThat(result, is(Arrays.asList(
-				"insert into M_USER (ID, CAPTION) VALUES (/*id*/''| "
+				"insert into M_USER (ID, CAPTION) VALUES ( /*id*/''|"
 
 		)));
 
@@ -234,7 +234,7 @@ public class StatementTypesTest {
 		result.forEach(System.out::println);
 
 		assertThat(result, is(Arrays.asList(
-				"insert into M_USER (ID, CAPTION) VALUES (/*id*/'',/*caption*/''| )"
+				"insert into M_USER (ID, CAPTION) VALUES (/*id*/'', /*caption*/''|)"
 
 		)));
 	}
@@ -247,20 +247,44 @@ public class StatementTypesTest {
 		result.forEach(System.out::println);
 
 		assertThat(result, is(Arrays.asList(
-				"insert into M_USER (ID, CAPTION) VALUES (/*id*/'',((/*caption*/''| )"
+				"insert into M_USER (ID, CAPTION) VALUES (/*id*/'',(( /*caption*/''|)"
 
 		)));
 	}
 
 	@Test
-	public void testInsertValuesToken() {
+	public void testInsertValuesCols04() {
 
-		List<String> result = computeCompletionResults("insert into M_USER (ID, CAPTION) VALU|ES ",
+		List<String> result = computeCompletionResults("insert into M_USER (ID, CAPTION) VALUES (/*id*/''\n,\t",
 				config);
 		result.forEach(System.out::println);
 
 		assertThat(result, is(Arrays.asList(
-				"insert into M_USER (ID, CAPTION) values (\n\t/*id*/''\n,\t/*caption*/''\n,\t/*values*/''\n)|"
+				"insert into M_USER (ID, CAPTION) VALUES (/*id*/''\n,\t/*caption*/''|")));
+	}
+
+	@Test
+	public void testInsertValuesToken01() {
+
+		List<String> result = computeCompletionResults("insert into M_USER (ID, CAPTION) VALUES",
+				config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"insert into M_USER (ID, CAPTION) values (\n\t/*id*/''\n,\t/*caption*/''\n)|"
+
+		)));
+	}
+
+	@Test
+	public void testInsertValuesToken02() {
+
+		List<String> result = computeCompletionResults("insert into M_USER (ID, CAPTION) VAL|UE",
+				config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"insert into M_USER (ID, CAPTION) values (\n\t/*id*/''\n,\t/*caption*/''\n)|"
 
 		)));
 	}

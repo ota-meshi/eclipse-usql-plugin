@@ -3,6 +3,7 @@ package jp.co.future.eclipse.uroborosql.plugin.utils.collection;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -26,6 +27,31 @@ public interface FluentList<E> extends List<E>, FluentIterable<E> {
 			@Override
 			public int size() {
 				return FluentList.this.size();
+			}
+		};
+	}
+
+	@Override
+	default OptionalInt findLastIndex() {
+		int size = size();
+		if (size == 0) {
+			return OptionalInt.empty();
+		}
+		return OptionalInt.of(size - 1);
+	}
+
+	default FluentList<E> skip(long n) {
+		int i = (int) n;
+		return new AbstractFluentList<E>() {
+
+			@Override
+			public E get(int index) {
+				return FluentList.this.get(index - i);
+			}
+
+			@Override
+			public int size() {
+				return FluentList.this.size() - i;
 			}
 		};
 	}

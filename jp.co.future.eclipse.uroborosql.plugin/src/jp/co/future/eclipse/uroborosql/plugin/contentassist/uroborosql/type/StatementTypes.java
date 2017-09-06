@@ -7,10 +7,12 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.ContentAssistProcessors;
@@ -29,7 +31,9 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.T
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token.TokenRange;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Pair;
 import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.FluentList;
 import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Iterators;
 
 public enum StatementTypes implements IType {
@@ -228,12 +232,20 @@ public enum StatementTypes implements IType {
 				Function<String, String> reservedCaseFormatter) {
 			List<String> result = new ArrayList<>();
 			result.add(reservedCaseFormatter.apply("Values ("));
+
+			List<Pair<Token, Token>> ids = Token.getInParenthesis(insColsParenthesis.getStart())
+					.map(range -> findInsertidentifier(range).orElse(null))
+					.collect(Collectors.toList());
+			int maxWidths = ids.stream()
+					.filter(Objects::nonNull)
+					.map(id -> buildValuesValueBind(id.getE1()))
+					.mapToInt(s -> Strings.widths(s))
+					.max().orElse(0);
+
 			boolean first = true;
-			for (TokenRange range : Token.getInParenthesis(insColsParenthesis.getStart())) {
-				Token token = range.getBetweenTokens().filter(t -> t.getType() == TokenType.SQL_TOKEN).findLast()
-						.orElse(null);
-				if (token != null) {
-					result.add((first ? "\t" : ",\t") + buildValuesValue(token));
+			for (Pair<Token, Token> id : ids) {
+				if (id != null) {
+					result.add((first ? "\t" : ",\t") + buildValuesValueText(id, maxWidths));
 				} else {
 					result.add((first ? "\t" : ",\t") + "/*?*/''");
 				}
@@ -264,12 +276,15 @@ public enum StatementTypes implements IType {
 			if (tokenStart.getToken().getType() == TokenType.WHITESPACE) {
 				Optional<ValuesTokenSet> valuesTokenSet = getValuesTokenSet(tokenStart);
 				if (valuesTokenSet.isPresent()) {
-					Optional<Token> pairToken = calcPairToken(valuesTokenSet.get(), tokenStart.getToken());
-					if (pairToken.isPresent()) {
-						String s = buildValuesValue(pairToken.get());
+					Pair<Token, Token> pairToken = calcPairToken(valuesTokenSet.get(), tokenStart.getToken())
+							.orElse(null);
+					if (pairToken != null) {
+						String s = buildValuesValueText(pairToken, 0);
 						return Arrays.asList(new CompletionProposal(
-								new DocReplacement(s, tokenStart.point(), 0, OptionalInt.empty(), false), s,
-								"insert pair [" + pairToken.get().getString() + "]"));
+								new DocReplacement(s, tokenStart.getDocument().getUserOffset(), 0, OptionalInt.empty(),
+										false),
+								s,
+								"insert pair [" + pairToken.getE1().getString() + "]"));
 					}
 				}
 			}
@@ -277,13 +292,13 @@ public enum StatementTypes implements IType {
 			return Collections.emptyList();
 		}
 
-		private Optional<Token> calcPairToken(ValuesTokenSet valuesTokenSet, Token target) {
+		private Optional<Pair<Token, Token>> calcPairToken(ValuesTokenSet valuesTokenSet, Token target) {
 			int index = indexOfValue(valuesTokenSet.valuesOpen, target);
 
 			int colIndex = 0;
 			for (TokenRange range : Token.getInParenthesis(valuesTokenSet.colsParenthesis.getStart())) {
 				if (colIndex == index) {
-					return range.getBetweenTokens().filter(t -> t.getType() == TokenType.SQL_TOKEN).findLast();
+					return findInsertidentifier(range);
 				}
 				colIndex++;
 			}
@@ -352,8 +367,31 @@ public enum StatementTypes implements IType {
 			targetsContentAssistProcessors = EnumSet.of(ContentAssistProcessors.TOKEN);
 		} else {
 			targetsContentAssistProcessors = EnumSet.copyOf(Arrays.asList(targets));
-					}
-				}
+		}
+	}
+
+	protected Optional<Pair<Token, Token>> findInsertidentifier(TokenRange range) {
+		FluentList<Token> tokens = range.getBetweenTokens();
+
+		Token id = tokens.filter(t -> t.getType() == TokenType.SQL_TOKEN).findLast().orElse(null);
+		if (id == null) {
+			return Optional.empty();
+		}
+		int commentIndex = tokens.filter(t -> t.getType() == TokenType.L_COMMENT).findLastIndex().orElse(-1);
+		if (commentIndex == -1) {
+			return Optional.of(new Pair<>(id, null));
+		}
+		Token comment = tokens.get(commentIndex);
+		if (comment == null || comment.isAfter(id)) {
+			return Optional.of(new Pair<>(id, null));
+		}
+		//コメントより後ろに記述が無いか
+		if (tokens.skip(commentIndex).noneMatch(t -> t.getType().isSqlEnable())) {
+			return Optional.of(new Pair<>(id, comment));
+		}
+		return Optional.of(new Pair<>(id, null));
+
+	}
 
 	public static Optional<StatementTypes> within(Token token, ContentAssistProcessors contentAssistProcessors) {
 		for (Token prev : Token.getPrevSiblingOrParents(token)
@@ -361,7 +399,7 @@ public enum StatementTypes implements IType {
 			for (StatementTypes type : StatementTypes.values()) {
 				if (type.targetsContentAssistProcessors.contains(contentAssistProcessors) && type.isToken(prev)) {
 					return Optional.of(type);
-			}
+				}
 			}
 		}
 		return Optional.empty();
@@ -459,9 +497,22 @@ public enum StatementTypes implements IType {
 		return Optional.of(new TokenRange(colsOpenCand, colsCloseCand));
 	}
 
-	protected String buildValuesValue(Token token) {
+	protected String buildValuesValueBind(Token token) {
 		String colname = token.getNormalizeString();
 		return "/*" + Strings.toCamel(colname) + "*/''";
+	}
+
+	protected String buildValuesValueText(Pair<Token, Token> tokens, int maxWidths) {
+		String s = buildValuesValueBind(tokens.getE1());
+		int widths = Strings.widths(s);
+		if (maxWidths < widths) {
+			maxWidths = widths;
+		}
+
+		if (tokens.getE2() != null) {
+			s = Strings.rightTabs(s, maxWidths) + "\t" + tokens.getE2().getString();
+		}
+		return s;
 	}
 
 	private Optional<String> getAtName(DocumentPoint tokenStart) {
@@ -519,7 +570,7 @@ public enum StatementTypes implements IType {
 		if (next != null && next.getType().isSqlEnable()) {
 			//次のtokenが有効ならエイリアスではない
 			return Optional.empty();
-	}
+		}
 		Token tableName = Iterators.asIteratorFromNext(aliasCand, Token::getPrevToken).stream()
 				.filter(t -> t.getType().isSqlEnable())
 				.findFirst().orElse(null);
