@@ -3,10 +3,8 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.ide
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
-import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Lists;
 
 public class Columns extends AbstractList<Column> {
 	private final List<Column> list = new ArrayList<>();
@@ -27,17 +25,14 @@ public class Columns extends AbstractList<Column> {
 			Column o = list.get(i);
 			if (o.getName().equalsIgnoreCase(e.getName())) {
 				if (Strings.isEmpty(o.getComment()) && Strings.isEmpty(o.getDescription())) {
+					list.set(i, e);
+					return true;
+				}
+				if (Strings.isNotEmpty(o.getComment()) && Strings.isNotEmpty(o.getDescription())) {
 					return false;
 				}
-				String comment = Lists.asList(o.getComment(), e.getComment())
-						.filter(Objects::nonNull)
-						.findFirst()
-						.orElse(null);
-				String description = Lists.asList(o.getDescription(), e.getDescription())
-						.filter(Objects::nonNull)
-						.findFirst()
-						.orElse(null);
-				list.set(i, new Column(e.table, e.getName(), comment, description));
+
+				list.set(i, new Column(e, o));
 				return true;
 			}
 		}

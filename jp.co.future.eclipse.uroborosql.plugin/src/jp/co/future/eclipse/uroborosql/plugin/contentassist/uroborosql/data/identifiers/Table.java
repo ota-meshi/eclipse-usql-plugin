@@ -16,9 +16,14 @@ import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
 public class Table extends AbstractIdentifier<Table> {
 	final PluginConfig config;
 
-	public Table(PluginConfig config, String name, String comment, String description) {
-		super(name, comment, description);
+	public Table(PluginConfig config, String name, String comment, String description, int priority) {
+		super(name, comment, description, priority);
 		this.config = config;
+	}
+
+	Table(Table id1, Table id2) {
+		super(id1, id2);
+		config = id1.config;
 	}
 
 	@Override

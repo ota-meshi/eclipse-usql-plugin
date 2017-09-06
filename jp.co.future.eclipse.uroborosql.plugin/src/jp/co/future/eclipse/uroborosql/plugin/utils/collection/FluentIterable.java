@@ -1,6 +1,7 @@
 package jp.co.future.eclipse.uroborosql.plugin.utils.collection;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -36,6 +37,10 @@ public interface FluentIterable<E> extends Iterable<E> {
 
 	default <R> FluentIterable<R> map(Function<? super E, ? extends R> mapper) {
 		return Iterables.map(this, mapper);
+	}
+
+	default FluentIterable<E> sorted(Comparator<? super E> comparator) {
+		return Iterables.sorted(this, comparator);
 	}
 
 	default Stream<E> stream() {
