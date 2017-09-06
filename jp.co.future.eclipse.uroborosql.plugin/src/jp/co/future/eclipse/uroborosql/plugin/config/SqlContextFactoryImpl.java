@@ -1,6 +1,7 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
@@ -8,6 +9,7 @@ import java.math.BigInteger;
 import java.net.JarURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -60,15 +62,18 @@ public class SqlContextFactoryImpl {
 
 	public Variables buildConstParamMap(String constParamPrefix,
 			ClassesData classesData) {
-		ClassLoader classLoader = classesData.createURLClassLoader();
-		Variables paramMap = new Variables();
-		paramMap.putAll(buildConstParamMap(constParamPrefix, classesData.getLoaderTargetClassNames(), classLoader));
+		try (URLClassLoader classLoader = classesData.createURLClassLoader()) {
+			Variables paramMap = new Variables();
+			paramMap.putAll(buildConstParamMap(constParamPrefix, classesData.getLoaderTargetClassNames(), classLoader));
 
-		for (IType target : classesData.getSourceTypes()) {
-			makeConstParamMap(constParamPrefix, paramMap, target);
+			for (IType target : classesData.getSourceTypes()) {
+				makeConstParamMap(constParamPrefix, paramMap, target);
+			}
+
+			return paramMap;
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
 		}
-
-		return paramMap;
 	}
 
 	/**
@@ -91,24 +96,27 @@ public class SqlContextFactoryImpl {
 
 	public Variables buildEnumConstParamMap(String constParamPrefix,
 			PackagesData packagesData) {
-		ClassLoader classLoader = packagesData.createURLClassLoader();
-		Variables paramMap = new Variables();
-		paramMap.putAll(
-				buildEnumConstParamMap(constParamPrefix, packagesData.getLoaderTargetPackageNames(), classLoader));
+		try (URLClassLoader classLoader = packagesData.createURLClassLoader()) {
+			Variables paramMap = new Variables();
+			paramMap.putAll(
+					buildEnumConstParamMap(constParamPrefix, packagesData.getLoaderTargetPackageNames(), classLoader));
 
-		for (Entry<String, Collection<IType>> types : packagesData.getSourceTypes().entrySet()) {
-			for (IType type : types.getValue()) {
-				try {
-					if (type.isEnum()) {
-						makeEnumConstParamMap(constParamPrefix, paramMap, types.getKey(), type);
+			for (Entry<String, Collection<IType>> types : packagesData.getSourceTypes().entrySet()) {
+				for (IType type : types.getValue()) {
+					try {
+						if (type.isEnum()) {
+							makeEnumConstParamMap(constParamPrefix, paramMap, types.getKey(), type);
+						}
+					} catch (JavaModelException e) {
+						//ignore
 					}
-				} catch (JavaModelException e) {
-					//ignore
 				}
 			}
-		}
 
-		return paramMap;
+			return paramMap;
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 
 	/**

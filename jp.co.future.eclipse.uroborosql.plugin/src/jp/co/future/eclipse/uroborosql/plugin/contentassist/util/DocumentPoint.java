@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
-import jp.co.future.eclipse.uroborosql.plugin.utils.Iterators;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Iterators;
 
 public class DocumentPoint {
 	private final Document document;
@@ -37,22 +37,10 @@ public class DocumentPoint {
 		}
 	}
 
-	public String getIndent() {
-		DocumentScanner scanner = new DocumentScanner(document, point);
-		while (scanner.hasPrevious()) {
-			char c = scanner.previous();
-			if (c == '\n' || c == '\r') {
-				scanner.next();
-				return buildIndent(scanner);
-			}
-		}
-		return buildIndent(scanner);
-	}
-
 	public Function<String, String> getReservedCaseFormatter() {
 		Token token = getDocument().getUserOffsetToken();
 
-		return Iterators.stream(Iterators.asIterator(token, Token::getPrevToken))
+		return Iterators.asIteratorFromNext(token, Token::getPrevToken).stream()
 				.filter(prev -> prev.isReservedWord())
 				.findFirst()
 				.map(prev -> Optional.of(prev))
@@ -72,23 +60,6 @@ public class DocumentPoint {
 		return getDocument().getTokens().stream()
 				.filter(t -> t.isIn(point))
 				.findFirst().orElse(null);
-	}
-
-	private static String buildIndent(DocumentScanner scanner) {
-		char c = scanner.current();
-		if (!Character.isWhitespace(c)) {
-			return "";
-		}
-		StringBuilder builder = new StringBuilder();
-		builder.append(c);
-		while (scanner.hasNext()) {
-			c = scanner.next();
-			if (!Character.isWhitespace(c)) {
-				return builder.toString();
-			}
-			builder.append(c);
-		}
-		return builder.toString();
 	}
 
 	private boolean isLowerCase(String string) {

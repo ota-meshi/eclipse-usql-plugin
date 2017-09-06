@@ -7,13 +7,13 @@ import java.util.function.Supplier;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
 public class TokenContentAssistProcessor extends TestContentAssistProcessor {
-	public TokenContentAssistProcessor(String text, Supplier<String> additionalProposalInfo) {
-		this(text, () -> new Replacement(text), text, additionalProposalInfo);
+	public TokenContentAssistProcessor(String text, boolean needLinefeed, Supplier<String> additionalProposalInfo) {
+		this(text, () -> new Replacement(text, needLinefeed), text, additionalProposalInfo);
 	}
 
-	public TokenContentAssistProcessor(String test, String displayAndReplacementString,
+	public TokenContentAssistProcessor(String test, String displayAndReplacementString, boolean needLinefeed,
 			Supplier<String> additionalProposalInfo) {
-		super(toHitTest(test), () -> new Replacement(displayAndReplacementString),
+		super(toHitTest(test), () -> new Replacement(displayAndReplacementString, needLinefeed),
 				displayAndReplacementString,
 				additionalProposalInfo);
 	}

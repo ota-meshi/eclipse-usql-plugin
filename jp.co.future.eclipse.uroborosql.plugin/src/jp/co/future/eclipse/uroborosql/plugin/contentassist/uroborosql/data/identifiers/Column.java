@@ -3,8 +3,12 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.ide
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.Replacement;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
 
 public class Column extends AbstractIdentifier<Column> {
 	private final Table table;
@@ -30,4 +34,75 @@ public class Column extends AbstractIdentifier<Column> {
 				.collect(Collectors.joining("<br>"));
 		return s.isEmpty() ? "column name." : s;
 	}
+
+	public Replacement buildSelectColumn(int maxWidths, Function<String, String> reservedCaseFormatter) {
+		int widths = Strings.widths(getName());
+		if (maxWidths < widths) {
+			maxWidths = widths;
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append(Strings.rightTabs(getName(), maxWidths)).append(reservedCaseFormatter.apply("\tAs\t"));
+		int cursorPosition = sb.length();// ASの次
+		if (getComment() != null) {
+			sb.append(Strings.rightTabs(getName(), maxWidths)).append("\t-- ").append(getComment());
+		} else {
+			sb.append(getName());
+		}
+		return new Replacement(sb.toString(), cursorPosition, getComment() != null);
+	}
+
+	public Replacement buildSetColumn(int maxWidths) {
+		int widths = Strings.widths(getName());
+		if (maxWidths < widths) {
+			maxWidths = widths;
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append(Strings.rightTabs(getName(), maxWidths)).append("\t=\t");
+
+		int cursorPosition = sb.length() + 2;// [/*]の次
+
+		String bind = "/*" + Strings.toCamel(getName()) + "*/''";
+
+		if (getComment() != null) {
+			sb.append(Strings.rightTabs(bind, maxWidths + 6)).append("\t-- ").append(getComment());
+		} else {
+			sb.append(bind);
+		}
+		return new Replacement(sb.toString(), cursorPosition, getComment() != null);
+	}
+
+	public Replacement buildInsertColumn(int maxWidths) {
+		int widths = Strings.widths(getName());
+		if (maxWidths < widths) {
+			maxWidths = widths;
+		}
+		StringBuilder sb = new StringBuilder();
+		if (getComment() != null) {
+			sb.append(Strings.rightTabs(getName(), maxWidths)).append("\t-- ").append(getComment());
+		} else {
+			sb.append(getName());
+		}
+		return new Replacement(sb.toString(), getName().length(), getComment() != null);
+	}
+
+	public Replacement buildConditionColumn(int maxWidths) {
+		int widths = Strings.widths(getName());
+		if (maxWidths < widths) {
+			maxWidths = widths;
+		}
+		StringBuilder sb = new StringBuilder();
+		sb.append(Strings.rightTabs(getName(), maxWidths)).append("\t=\t");
+
+		int cursorPosition = sb.length() + 2;// [/*]の次
+
+		String bind = "/*" + Strings.toCamel(getName()) + "*/''";
+
+		if (getComment() != null) {
+			sb.append(Strings.rightTabs(bind, maxWidths + 6)).append("\t-- ").append(getComment());
+		} else {
+			sb.append(bind);
+		}
+		return new Replacement(sb.toString(), cursorPosition, getComment() != null);
+	}
+
 }

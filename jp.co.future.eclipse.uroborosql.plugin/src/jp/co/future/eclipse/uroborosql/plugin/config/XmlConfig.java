@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,7 +38,6 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.vari
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CacheContainerMap;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CachePredicate;
-import jp.co.future.eclipse.uroborosql.plugin.utils.Maps;
 
 public class XmlConfig implements PluginConfig {
 
@@ -190,6 +190,16 @@ public class XmlConfig implements PluginConfig {
 		};
 	}
 
+	public int sql(String sql) {
+		DbInfo dbInfo = getDbInfo("");
+		return Internal.connect(project, dbInfo, conn -> {
+			conn.setAutoCommit(true);
+			try (PreparedStatement ps = conn.prepareStatement(sql)) {
+				return ps.executeUpdate();
+			}
+		}).orElse(0);
+	}
+
 	/**
 	 * class から定数値の読み込み
 	 * @return
@@ -289,7 +299,7 @@ public class XmlConfig implements PluginConfig {
 	}
 
 	private Collection<Table> loadTables(Connection conn, String select, String text) throws SQLException {
-		return Internal.query(project, conn, select, Maps.of("tableName", text), (rs) -> {
+		return Internal.query(project, conn, select, Table.getNameParamMap(text), (rs) -> {
 			List<Table> result = new ArrayList<>();
 			LabelMetadata[] labels = Internal.getLabelMetadatas(rs, new String[][] {
 					generateIdentifierNames("table", "table", "name,nm"),
@@ -306,7 +316,7 @@ public class XmlConfig implements PluginConfig {
 	}
 
 	private List<Column> loadColumns(Connection conn, String select, Table table) throws SQLException {
-		return Internal.query(project, conn, select, Maps.of("tableName", table.getName()), (rs) -> {
+		return Internal.query(project, conn, select, table.getNameParamMap(), (rs) -> {
 			List<Column> result = new ArrayList<>();
 			LabelMetadata[] labels = Internal.getLabelMetadatas(rs, new String[][] {
 					generateIdentifierNames("column,col", "column,col", "name,nm"),

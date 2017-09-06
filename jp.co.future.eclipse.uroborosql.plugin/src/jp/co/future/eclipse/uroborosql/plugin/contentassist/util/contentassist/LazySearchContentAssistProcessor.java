@@ -12,9 +12,10 @@ public class LazySearchContentAssistProcessor extends TestContentAssistProcessor
 	private final TokenContentAssistProcessor noLazy;
 
 	public LazySearchContentAssistProcessor(String noLazy, Collection<String> testTexts,
-			String displayAndReplacementString,
+			String displayAndReplacementString, boolean needLinefeed,
 			Supplier<String> additionalProposalInfo) {
-		this(noLazy, testTexts, () -> new Replacement(displayAndReplacementString), displayAndReplacementString,
+		this(noLazy, testTexts, () -> new Replacement(displayAndReplacementString, needLinefeed),
+				displayAndReplacementString,
 				additionalProposalInfo);
 	}
 

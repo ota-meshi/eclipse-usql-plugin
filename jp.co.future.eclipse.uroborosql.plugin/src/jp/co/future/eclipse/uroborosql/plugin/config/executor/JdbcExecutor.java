@@ -41,7 +41,7 @@ public class JdbcExecutor implements Executor {
 			sb.append(token.getString());
 		}
 
-		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+		try (PreparedStatement ps = conn.prepareStatement(sb.toString())) {
 			for (int i = 0; i < paramList.size(); i++) {
 				ps.setObject(i + 1, paramList.get(i));
 			}

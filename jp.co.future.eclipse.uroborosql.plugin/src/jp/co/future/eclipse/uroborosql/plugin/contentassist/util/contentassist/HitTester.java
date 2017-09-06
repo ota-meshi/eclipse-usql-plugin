@@ -7,6 +7,8 @@ import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import jp.co.future.eclipse.uroborosql.plugin.utils.Characters;
+
 public class HitTester {
 	private static final int OFFSET_ORDERED = 20;
 	private static final int OFFSET_SEARCH = 30;
@@ -50,22 +52,20 @@ public class HitTester {
 			if (!text.hasNext()) {
 				return OptionalInt.empty();
 			}
-			int oic = input.nextInt();
-			int otc = text.nextInt();
-			int ic;
-			int tc;
+			int ic = input.nextInt();
+			int tc = text.nextInt();
 			if (!capitalTarget) {
 				//先頭文字以外はignore caseで比較する
-				ic = Character.toUpperCase(oic);
-				tc = Character.toUpperCase(otc);
+				if (!Characters.equalsIgnoreCase(ic, tc)) {
+					return OptionalInt.empty();
+				}
 			} else {
-				ic = oic;
-				tc = otc;
+				if (ic != tc) {
+					return OptionalInt.empty();
+				}
 			}
-			if (ic != tc) {
-				return OptionalInt.empty();
-			}
-			diffPoint += oic == otc ? 0 : 1;
+
+			diffPoint += ic == tc ? 0 : 1;
 			//次が先頭文字かどうか
 			capitalTarget = !isStandard(tc);
 		}
@@ -79,10 +79,10 @@ public class HitTester {
 
 		int diffPoint = 0;
 		inputLoop: while (input.hasNext()) {
-			int ic = Character.toUpperCase(input.nextInt());
+			int ic = input.nextInt();
 			while (text.hasNext()) {
-				int tc = Character.toUpperCase(text.nextInt());
-				if (ic == tc) {
+				int tc = text.nextInt();
+				if (Characters.equalsIgnoreCase(ic, tc)) {
 					first = false;
 					intarval = 0;
 					continue inputLoop;

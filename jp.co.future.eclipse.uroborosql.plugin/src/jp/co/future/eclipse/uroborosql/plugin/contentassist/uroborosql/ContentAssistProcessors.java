@@ -29,14 +29,14 @@ public enum ContentAssistProcessors {
 
 		@Override
 		public boolean possibilityLazy(Token userOffsetToken) {
-			return userOffsetToken.toString().replaceAll("\\s", "").startsWith("/*#");
+			return userOffsetToken.getString().replaceAll("\\s", "").startsWith("/*#");
 		}
 	},
 	TOKEN {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
 				boolean lazy, PluginConfig config) {
-			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken);
+			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken, this);
 			if (tokenTypes.isPresent()) {
 				return tokenTypes.get().computeCompletionProposals(userOffsetToken.toDocumentPoint(), lazy, config);
 			}
@@ -46,9 +46,24 @@ public enum ContentAssistProcessors {
 
 		@Override
 		public boolean possibilityLazy(Token userOffsetToken) {
-			int i;
-			// TODO 自動生成されたメソッド・スタブ
-			return true;
+			return userOffsetToken.getString().length() > 3;
+		}
+	},
+	WHITESPACE {
+		@Override
+		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
+				boolean lazy, PluginConfig config) {
+			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken, this);
+			if (tokenTypes.isPresent()) {
+				return tokenTypes.get().computeCompletionProposals(userOffsetToken.toDocumentPoint(), lazy, config);
+			}
+
+			return Collections.emptyList();
+		}
+
+		@Override
+		public boolean possibilityLazy(Token userOffsetToken) {
+			return userOffsetToken.getString().length() > 3;
 		}
 	},
 	NONE {
@@ -75,6 +90,8 @@ public enum ContentAssistProcessors {
 			return ContentAssistProcessors.MULTILINE_COMMENT;
 		} else if (token.getType() == TokenType.SQL_TOKEN) {
 			return ContentAssistProcessors.TOKEN;
+		} else if (token.getType() == TokenType.WHITESPACE) {
+			return ContentAssistProcessors.WHITESPACE;
 		}
 		return ContentAssistProcessors.NONE;
 	}

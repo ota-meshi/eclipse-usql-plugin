@@ -128,7 +128,7 @@ public class XmlConfigTest {
 				+ "		</constantSqls>"
 				+ "	</sqlContextFactory>"
 				+ "	<db>"
-				+ "		<url>jdbc:h2:mem:test</url>"
+				+ "		<url>jdbc:h2:mem:" + this.getClass().getSimpleName() + "</url>"
 				+ "		<user>sa</user>"
 				+ "		<classpath>" + Paths.get("testlib/h2-1.4.196.jar").toRealPath().toString() + "</classpath>"
 				+ "	</db>"
