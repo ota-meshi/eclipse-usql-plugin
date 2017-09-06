@@ -352,8 +352,8 @@ public enum StatementTypes implements IType {
 			targetsContentAssistProcessors = EnumSet.of(ContentAssistProcessors.TOKEN);
 		} else {
 			targetsContentAssistProcessors = EnumSet.copyOf(Arrays.asList(targets));
-		}
-	}
+					}
+				}
 
 	public static Optional<StatementTypes> within(Token token, ContentAssistProcessors contentAssistProcessors) {
 		for (Token prev : Token.getPrevSiblingOrParents(token)
@@ -361,7 +361,7 @@ public enum StatementTypes implements IType {
 			for (StatementTypes type : StatementTypes.values()) {
 				if (type.targetsContentAssistProcessors.contains(contentAssistProcessors) && type.isToken(prev)) {
 					return Optional.of(type);
-				}
+			}
 			}
 		}
 		return Optional.empty();
@@ -519,7 +519,7 @@ public enum StatementTypes implements IType {
 		if (next != null && next.getType().isSqlEnable()) {
 			//次のtokenが有効ならエイリアスではない
 			return Optional.empty();
-		}
+	}
 		Token tableName = Iterators.asIteratorFromNext(aliasCand, Token::getPrevToken).stream()
 				.filter(t -> t.getType().isSqlEnable())
 				.findFirst().orElse(null);
