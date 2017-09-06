@@ -146,8 +146,9 @@ public class TreeContentAssistProcessor implements IListContentAssistProcessor {
 					if (cursorPosition < 0) {
 						cursorPosition = replacementString.length();
 					}
-					return new CompletionProposal(p.lazyPoint, replacementString, point.point(), replacementLength,
-							cursorPosition, p.prop.name, p.prop.additionalProposalInfo.get());
+					return new CompletionProposal(p.lazyPoint, new String[] { replacementString }, point.point(),
+							replacementLength,
+							cursorPosition, false, p.prop.name, p.prop.additionalProposalInfo.get());
 				})
 				.collect(Collectors.toList());
 

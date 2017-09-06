@@ -34,17 +34,22 @@ import org.eclipse.jdt.ui.JavadocContentAccess;
 public class Jdts {
 	public static String getJavadoc(IMember member) {
 		try {
+			@SuppressWarnings("resource")
 			Reader reader = JavadocContentAccess.getContentReader(member, false);
 			if (reader == null) {
 				return null;
 			}
-			StringBuffer buf = new StringBuffer();
-			int ch;
-			while ((ch = reader.read()) != -1) {
-				buf.append((char) ch);
+			try {
+				StringBuffer buf = new StringBuffer();
+				int ch;
+				while ((ch = reader.read()) != -1) {
+					buf.append((char) ch);
+				}
+				String s = buf.toString();
+				return s.isEmpty() ? null : s;
+			} finally {
+				reader.close();
 			}
-			String s = buf.toString();
-			return s.isEmpty() ? null : s;
 		} catch (IOException | JavaModelException e) {
 			return null;
 		}
@@ -73,7 +78,7 @@ public class Jdts {
 				// ignore
 			}
 		}
-		return null;
+		return value;
 	}
 
 	public static String getSimpleName(IType targetClass) {

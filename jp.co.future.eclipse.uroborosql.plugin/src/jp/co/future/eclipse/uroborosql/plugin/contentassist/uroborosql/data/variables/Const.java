@@ -50,7 +50,7 @@ public class Const extends AbstractVariable {
 	public IPartContentAssistProcessor createContentAssistProcessor() {
 		String text = "/*#" + getVariableName() + "*/";
 		String replaceText = "/*#" + getVariableName() + "*/" + Objects.toString(getSqlValue(), "''");
-		return new TokenContentAssistProcessor(text, replaceText, () -> getActDescription());
+		return new TokenContentAssistProcessor(text, replaceText, false, () -> getActDescription());
 	}
 
 	@Override
@@ -61,7 +61,7 @@ public class Const extends AbstractVariable {
 				.collect(Collectors.toList());
 
 		String replaceText = "/*#" + getVariableName() + "*/" + Objects.toString(getSqlValue(), "''");
-		return new LazySearchContentAssistProcessor("/*#" + getVariableName() + "*/", texts, replaceText,
+		return new LazySearchContentAssistProcessor("/*#" + getVariableName() + "*/", texts, replaceText, false,
 				() -> getActDescription());
 	}
 

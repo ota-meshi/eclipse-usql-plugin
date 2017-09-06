@@ -110,14 +110,29 @@ public enum TokenType {
 		public boolean isSqlEnable() {
 			return true;
 		}
+
+		@Override
+		public String getNormalizeString(String s) {
+			return s.replaceAll("^\"", "").replaceAll("\"$", "").replaceAll("\"\"", "\"");
+		}
+
 	},
 	SYMBOL {
 		@Override
 		public void scanEnd(DocumentScanner scanner) {
 			while (scanner.hasNext()) {
 				char c = scanner.next();
-				if (!isSymbol(c) || c == '\'' || c == '"' || c == '/' && scanner.offset(1) == '*'
-						|| c == '-' && scanner.offset(1) == '-') {
+				if (!isSymbol(c)
+						//string
+						|| c == '\'' || c == '"' ||
+				//comment
+						c == '/' && scanner.offset(1) == '*'
+						|| c == '-' && scanner.offset(1) == '-'
+				//single symbols
+						|| c == '.'
+						|| c == ','
+						|| c == ')'
+						|| c == '(') {
 					scanner.previous();
 					return;
 				}
@@ -262,4 +277,8 @@ public enum TokenType {
 	public abstract boolean isVariableNext();
 
 	public abstract boolean isSqlEnable();
+
+	public String getNormalizeString(String s) {
+		return s;
+	}
 }

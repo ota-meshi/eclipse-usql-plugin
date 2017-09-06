@@ -3,10 +3,8 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.ide
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +14,7 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.R
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
 
 public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements IIdentifier<S> {
+
 	private final String name;
 	private final String comment;
 	private final String description;
@@ -86,16 +85,24 @@ public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements II
 	}
 
 	@Override
+	public Replacement toReplacement() {
+		if (getComment() != null) {
+			return new Replacement(getName() + "\t-- " + getComment(), getName().length(), true);
+		} else {
+			return new Replacement(getName(), false);
+		}
+
+	}
+
+	@Override
 	@SuppressWarnings("unchecked")
 	public List<IPartContentAssistProcessor> createContentAssistProcessor(
-			Map<String, Function<S, Replacement>> buildReplacements) {
-		String displayText = toString();
-
-		return buildReplacements.entrySet().stream()
+			List<IdentifierReplacement<S>> buildReplacements) {
+		return buildReplacements.stream()
 				.map(e -> {
 					return new TokenContentAssistProcessor(getName(),
-							() -> e.getValue().apply((S) this),
-							e.getKey().isEmpty() ? displayText : e.getKey() + " " + displayText,
+							() -> e.buildReplacement.apply((S) this),
+							e.buildDisplay.apply((S) this),
 							() -> getActDescription());
 				})
 				.collect(Collectors.toList());
@@ -104,7 +111,7 @@ public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements II
 	@Override
 	@SuppressWarnings("unchecked")
 	public List<IPartContentAssistProcessor> createLazyContentAssistProcessor(
-			Map<String, Function<S, Replacement>> buildReplacements) {
+			List<IdentifierReplacement<S>> buildReplacements) {
 		Set<String> texts = Stream.of(getName(), getComment(), getDescription())
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
@@ -112,13 +119,11 @@ public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements II
 				.filter(Objects::nonNull)
 				.forEach(texts::add);
 
-		String displayText = toString();
-
-		return buildReplacements.entrySet().stream()
+		return buildReplacements.stream()
 				.map(e -> {
 					return new LazySearchContentAssistProcessor(getName(), texts,
-							() -> e.getValue().apply((S) this),
-							e.getKey().isEmpty() ? displayText : e.getKey() + " " + displayText,
+							() -> e.buildReplacement.apply((S) this),
+							e.buildDisplay.apply((S) this),
 							() -> getActDescription());
 				})
 				.collect(Collectors.toList());

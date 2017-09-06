@@ -74,8 +74,11 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 
 	@Override
 	public ICompletionProposal[] computeCompletionProposals(ITextViewer viewer, int offset) {
-
 		PluginConfig config = PluginConfig.load();
+		return computeCompletionProposals(viewer, offset, config);
+	}
+
+	public ICompletionProposal[] computeCompletionProposals(ITextViewer viewer, int offset, PluginConfig config) {
 
 		List<ICompletionProposal> list = computeUroboroSQLCompletionProposals(viewer, offset, config).stream()
 				.sorted(UroboroSQLContentAssistProcessor::compareCompletionProposal)
