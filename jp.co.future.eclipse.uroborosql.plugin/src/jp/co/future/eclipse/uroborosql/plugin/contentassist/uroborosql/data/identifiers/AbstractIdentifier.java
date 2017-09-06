@@ -2,6 +2,7 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.ide
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -12,29 +13,49 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.I
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.LazySearchContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.Replacement;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Lists;
 
 public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements IIdentifier<S> {
 
 	private final String name;
 	private final String comment;
 	private final String description;
+	private final int commentPriority;
+	private final int descriptionPriority;
 
-	public AbstractIdentifier(String name, String comment, String description) {
+	public AbstractIdentifier(String name, String comment, String description, int priority) {
+		this(name, comment, description, priority, priority);
+	}
+
+	private AbstractIdentifier(String name, String comment, String description, int commentPriority,
+			int descriptionPriority) {
 		if (name == null) {
 			throw new NullPointerException("name is null");
 		}
 		this.name = name;
 		this.comment = comment;
 		this.description = description;
-
+		this.commentPriority = commentPriority;
+		this.descriptionPriority = descriptionPriority;
 	}
 
-	public AbstractIdentifier(String name) {
-		this(name, null);
-	}
-
-	public AbstractIdentifier(String name, String comment) {
-		this(name, comment, null);
+	AbstractIdentifier(AbstractIdentifier<?> id1, AbstractIdentifier<?> id2) {
+		AbstractIdentifier<?> comment = Lists.asList(id1, id2)
+				.sorted(Comparator.comparing(id -> id.commentPriority))
+				.filter(id -> Strings.isNotEmpty(id.getComment()))
+				.findFirst()
+				.orElse(id1);
+		AbstractIdentifier<?> description = Lists.asList(id1, id2)
+				.sorted(Comparator.comparing(id -> id.descriptionPriority))
+				.filter(id -> Strings.isNotEmpty(id.getDescription()))
+				.findFirst()
+				.orElse(id1);
+		this.name = id1.name;
+		this.comment = comment.getComment();
+		this.description = description.getDescription();
+		this.commentPriority = comment.commentPriority;
+		this.descriptionPriority = description.descriptionPriority;
 	}
 
 	@Override

@@ -13,9 +13,14 @@ import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
 public class Column extends AbstractIdentifier<Column> {
 	final Table table;
 
-	public Column(Table table, String name, String comment, String description) {
-		super(name, comment, description);
+	public Column(Table table, String name, String comment, String description, int priority) {
+		super(name, comment, description, priority);
 		this.table = table;
+	}
+
+	Column(Column id1, Column id2) {
+		super(id1, id2);
+		table = id1.table;
 	}
 
 	@Override

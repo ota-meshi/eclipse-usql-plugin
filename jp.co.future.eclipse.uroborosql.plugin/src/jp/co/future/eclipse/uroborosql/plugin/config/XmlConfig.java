@@ -11,9 +11,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -155,16 +157,23 @@ public class XmlConfig implements PluginConfig {
 				if (selects.isEmpty()) {
 					return new Columns();
 				}
+				Map<String, Map<Integer, String>> dbMap = new HashMap<>();
+				for (int i = 0; i < selects.size(); i++) {
+					AttributableValue select = selects.get(i);
+					String db = select.attr("db").orElse("");
+					dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
+				}
+
 				Columns result = new Columns();
-				selects.stream().collect(Collectors.groupingBy(select -> select.attr("db").orElse("")))
-						.forEach((db, sels) -> {
-							for (AttributableValue select : sels) {
-								DbInfo dbInfo = getDbInfo(db);
-								Internal.connect(project, dbInfo, conn -> {
-									return loadColumns(conn, select.value(), table);
-								}).ifPresent(result::addAll);
-							}
-						});
+				dbMap.forEach((db, sels) -> {
+					DbInfo dbInfo = getDbInfo(db);
+					Internal.connect(project, dbInfo, conn -> {
+						for (Map.Entry<Integer, String> e : sels.entrySet()) {
+							result.addAll(loadColumns(conn, e.getValue(), table, e.getKey()));
+						}
+						return null;
+					});
+				});
 				return result;
 			});
 		} catch (RuntimeException e) {
@@ -250,15 +259,21 @@ public class XmlConfig implements PluginConfig {
 			return new Variables();
 		}
 
+		Map<String, Set<String>> dbMap = new HashMap<>();
+		for (AttributableValue select : selects) {
+			String db = select.attr("db").orElse("");
+			dbMap.computeIfAbsent(db, k -> new HashSet<>()).add(select.value());
+		}
+
 		Variables variables = new Variables();
-		selects.stream().collect(Collectors.groupingBy(select -> select.attr("db").orElse(""))).forEach((db, sels) -> {
-			for (AttributableValue select : sels) {
-				DbInfo dbInfo = getDbInfo(db);
-				Internal.connect(project, dbInfo, conn -> {
-					variables.putAll(loadDbConst(conn, select.value()));
-					return null;
-				});
-			}
+		dbMap.forEach((db, sels) -> {
+			DbInfo dbInfo = getDbInfo(db);
+			Internal.connect(project, dbInfo, conn -> {
+				for (String sel : sels) {
+					variables.putAll(loadDbConst(conn, sel));
+				}
+				return null;
+			});
 		});
 
 		return variables;
@@ -270,15 +285,23 @@ public class XmlConfig implements PluginConfig {
 		if (selects.isEmpty()) {
 			return Collections.emptyList();
 		}
+
+		Map<String, Map<Integer, String>> dbMap = new HashMap<>();
+		for (int i = 0; i < selects.size(); i++) {
+			AttributableValue select = selects.get(i);
+			String db = select.attr("db").orElse("");
+			dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
+		}
+
 		Set<Table> result = new HashSet<>();
-		selects.stream().collect(Collectors.groupingBy(select -> select.attr("db").orElse(""))).forEach((db, sels) -> {
-			for (AttributableValue select : sels) {
-				DbInfo dbInfo = getDbInfo(db);
-				Internal.connect(project, dbInfo, conn -> {
-					result.addAll(loadTables(conn, select.value(), text));
-					return null;
-				});
-			}
+		dbMap.forEach((db, sels) -> {
+			DbInfo dbInfo = getDbInfo(db);
+			Internal.connect(project, dbInfo, conn -> {
+				for (Map.Entry<Integer, String> e : sels.entrySet()) {
+					result.addAll(loadTables(conn, e.getValue(), text, e.getKey()));
+				}
+				return null;
+			});
 		});
 		return result;
 	}
@@ -288,15 +311,23 @@ public class XmlConfig implements PluginConfig {
 		if (selects.isEmpty()) {
 			return Collections.emptyList();
 		}
+
+		Map<String, Map<Integer, String>> dbMap = new HashMap<>();
+		for (int i = 0; i < selects.size(); i++) {
+			AttributableValue select = selects.get(i);
+			String db = select.attr("db").orElse("");
+			dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
+		}
+
 		Set<Table> result = new HashSet<>();
-		selects.stream().collect(Collectors.groupingBy(select -> select.attr("db").orElse(""))).forEach((db, sels) -> {
-			for (AttributableValue select : sels) {
-				DbInfo dbInfo = getDbInfo(db);
-				Internal.connect(project, dbInfo, conn -> {
-					result.addAll(loadTables(conn, select.value(), text));
-					return null;
-				});
-			}
+		dbMap.forEach((db, sels) -> {
+			DbInfo dbInfo = getDbInfo(db);
+			Internal.connect(project, dbInfo, conn -> {
+				for (Map.Entry<Integer, String> e : sels.entrySet()) {
+					result.addAll(loadTables(conn, e.getValue(), text, e.getKey()));
+				}
+				return null;
+			});
 		});
 		return result;
 	}
@@ -318,7 +349,8 @@ public class XmlConfig implements PluginConfig {
 		});
 	}
 
-	private Collection<Table> loadTables(Connection conn, String select, String text) throws SQLException {
+	private Collection<Table> loadTables(Connection conn, String select, String text, int priority)
+			throws SQLException {
 		return Internal.query(project, conn, select, Table.getNameParamMap(text), (rs) -> {
 			List<Table> result = new ArrayList<>();
 			LabelMetadata[] labels = Internal.getLabelMetadatas(rs, new String[][] {
@@ -329,13 +361,13 @@ public class XmlConfig implements PluginConfig {
 				String name = labels[0].getString(rs);
 				String comment = labels[1].getString(rs);
 				String description = labels[2].getString(rs);
-				result.add(new Table(this, name, comment, description));
+				result.add(new Table(this, name, comment, description, priority));
 			}
 			return result;
 		});
 	}
 
-	private List<Column> loadColumns(Connection conn, String select, Table table) throws SQLException {
+	private List<Column> loadColumns(Connection conn, String select, Table table, int priority) throws SQLException {
 		return Internal.query(project, conn, select, table.getNameParamMap(), (rs) -> {
 			List<Column> result = new ArrayList<>();
 			LabelMetadata[] labels = Internal.getLabelMetadatas(rs, new String[][] {
@@ -347,7 +379,7 @@ public class XmlConfig implements PluginConfig {
 				String name = labels[0].getString(rs);
 				String comment = labels[1].getString(rs);
 				String description = labels[2].getString(rs);
-				result.add(new Column(table, name, comment, description));
+				result.add(new Column(table, name, comment, description, priority));
 			}
 			return result;
 		});
