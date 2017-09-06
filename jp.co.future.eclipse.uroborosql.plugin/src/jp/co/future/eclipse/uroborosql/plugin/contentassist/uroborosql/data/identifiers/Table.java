@@ -32,7 +32,7 @@ public class Table extends AbstractIdentifier<Table> {
 		return s.isEmpty() ? "table name." : s;
 	}
 
-	public List<Column> getColumns() {
+	public Columns getColumns() {
 		return config.getColumn(this);
 	}
 

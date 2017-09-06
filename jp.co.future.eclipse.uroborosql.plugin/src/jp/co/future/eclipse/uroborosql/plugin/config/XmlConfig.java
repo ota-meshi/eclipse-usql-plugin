@@ -31,6 +31,7 @@ import jp.co.future.eclipse.uroborosql.plugin.config.xml.AttributableValue;
 import jp.co.future.eclipse.uroborosql.plugin.config.xml.ITarget;
 import jp.co.future.eclipse.uroborosql.plugin.config.xml.Xml;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Column;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Columns;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Tables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
@@ -66,7 +67,7 @@ public class XmlConfig implements PluginConfig {
 	private final CacheContainer<Tables, RuntimeException> tables = new CacheContainer<>(
 			(data, time) -> time + TimeUnit.HOURS.toMillis(8) > System.currentTimeMillis());
 
-	private final CacheContainerMap<String, List<Column>, RuntimeException> columns = CacheContainer.createMap(
+	private final CacheContainerMap<String, Columns, RuntimeException> columns = CacheContainer.createMap(
 			(data, time) -> time + TimeUnit.SECONDS.toMillis(60) > System.currentTimeMillis());
 
 	public XmlConfig(byte[] input, IProject project)
@@ -127,28 +128,27 @@ public class XmlConfig implements PluginConfig {
 	}
 
 	@Override
-	public List<Column> getColumn(Table table) {
+	public Columns getColumn(Table table) {
 		try {
 			return columns.get(table.getName()).orElseGet(() -> {
 				List<AttributableValue> selects = getTarget("contentassist", "columns", "sql").list();
 				if (selects.isEmpty()) {
-					return Collections.emptyList();
+					return new Columns();
 				}
-				List<Column> result = new ArrayList<>();
+				Columns result = new Columns();
 				selects.stream().collect(Collectors.groupingBy(select -> select.attr("db").orElse("")))
 						.forEach((db, sels) -> {
 							for (AttributableValue select : sels) {
 								DbInfo dbInfo = getDbInfo(db);
 								Internal.connect(project, dbInfo, conn -> {
-									result.addAll(loadColumns(conn, select.value(), table));
-									return null;
-								});
+									return loadColumns(conn, select.value(), table);
+								}).ifPresent(result::addAll);
 							}
 						});
 				return result;
 			});
 		} catch (RuntimeException e) {
-			return Collections.emptyList();
+			return new Columns();
 		}
 	}
 

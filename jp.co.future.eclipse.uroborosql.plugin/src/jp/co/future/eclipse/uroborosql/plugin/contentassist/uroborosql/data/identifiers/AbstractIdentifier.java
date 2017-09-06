@@ -20,9 +20,13 @@ public abstract class AbstractIdentifier<S extends IIdentifier<S>> implements II
 	private final String description;
 
 	public AbstractIdentifier(String name, String comment, String description) {
+		if (name == null) {
+			throw new NullPointerException("name is null");
+		}
 		this.name = name;
 		this.comment = comment;
 		this.description = description;
+
 	}
 
 	public AbstractIdentifier(String name) {

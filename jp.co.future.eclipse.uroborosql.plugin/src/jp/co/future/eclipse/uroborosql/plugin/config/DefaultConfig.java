@@ -1,9 +1,6 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
-import java.util.Collections;
-import java.util.List;
-
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Column;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Columns;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Tables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
@@ -31,7 +28,7 @@ public class DefaultConfig implements PluginConfig {
 	}
 
 	@Override
-	public List<Column> getColumn(Table table) {
-		return Collections.emptyList();
+	public Columns getColumn(Table table) {
+		return new Columns();
 	}
 }

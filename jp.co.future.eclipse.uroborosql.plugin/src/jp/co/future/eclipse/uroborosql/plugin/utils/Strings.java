@@ -8,6 +8,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.PrimitiveIterator;
 
 public class Strings {
+
+	public static boolean isEmpty(String s) {
+		return s == null || s.isEmpty();
+	}
+
+	public static boolean isNotEmpty(String s) {
+		return !isEmpty(s);
+	}
+
 	public static String toCamel(final String original) {
 		if (original == null || original.isEmpty()) {
 			return "";

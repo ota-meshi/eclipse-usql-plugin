@@ -11,7 +11,7 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.R
 import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
 
 public class Column extends AbstractIdentifier<Column> {
-	private final Table table;
+	final Table table;
 
 	public Column(Table table, String name, String comment, String description) {
 		super(name, comment, description);

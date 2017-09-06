@@ -4,7 +4,11 @@ import java.util.AbstractSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+
+import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Lists;
 
 public class Tables extends AbstractSet<Table> {
 	private final Map<String, Table> map = new HashMap<>();
@@ -26,26 +30,19 @@ public class Tables extends AbstractSet<Table> {
 			if (o == null) {
 				return e;
 			}
-			if (isEmpty(o.getComment()) && isEmpty(o.getDescription())) {
+			if (Strings.isEmpty(o.getComment()) && Strings.isEmpty(o.getDescription())) {
 				return e;
 			}
-			String comment = getDefined(e.getComment(), o.getComment());
-			String description = getDefined(e.getDescription(), o.getDescription());
+			String comment = Lists.asList(o.getComment(), e.getComment())
+					.filter(Objects::nonNull)
+					.findFirst()
+					.orElse(null);
+			String description = Lists.asList(o.getDescription(), e.getDescription())
+					.filter(Objects::nonNull)
+					.findFirst()
+					.orElse(null);
 			return new Table(e.config, e.getName(), comment, description);
 		}).equals(e);
-	}
-
-	private String getDefined(String... ss) {
-		for (String s : ss) {
-			if (!isEmpty(s)) {
-				return s;
-			}
-		}
-		return ss[0];
-	}
-
-	private boolean isEmpty(String s) {
-		return s == null || s.isEmpty();
 	}
 
 	public Optional<Table> get(String tableName) {

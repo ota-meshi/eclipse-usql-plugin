@@ -1,4 +1,4 @@
-package jp.co.future.eclipse.uroborosql.plugin.utils;
+package jp.co.future.eclipse.uroborosql.plugin.utils.collection;
 
 import java.util.HashMap;
 import java.util.Map;

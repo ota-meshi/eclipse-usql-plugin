@@ -6,7 +6,7 @@ import org.eclipse.core.resources.IProject;
 import org.eclipse.datatools.sqltools.sqleditor.internal.SQLEditorPlugin;
 import org.eclipse.ui.IEditorPart;
 
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Column;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Columns;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Tables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
@@ -64,7 +64,7 @@ public interface PluginConfig {
 
 	Tables getTables(String text, boolean lazy);
 
-	List<Column> getColumn(Table table);
+	Columns getColumn(Table table);
 
 	default DbInfo getDbInfo(String name) {
 		DbInfo db = getDbInfos().get(name);
