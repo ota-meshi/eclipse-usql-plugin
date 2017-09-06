@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,12 +23,14 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentScanner
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.SqlConstants;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IListContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPartContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.Replacement;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TextContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TreeContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.IdentifierNode;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
 
 public class UroboroSQLUtils {
 
@@ -62,14 +63,17 @@ public class UroboroSQLUtils {
 			.unmodifiableList(Arrays.asList("IF", "END", "ELSE", "ELIF", "BEGIN"));
 	public static final List<IPartContentAssistProcessor> SYNTAX_PROCESSORS = Collections
 			.unmodifiableList(Arrays.asList(
-					new TextContentAssistProcessor("/*IF", new String[] { "/*IF */", "/*END*/" }, 5, "/*IF*/",
+					new TextContentAssistProcessor("/*IF",
+							new Replacement(new String[] { "/*IF */", "/*END*/" }, 5, false), "/*IF*/",
 							() -> "syntax IF"),
-					new TextContentAssistProcessor("/*BEGIN*/", new String[] { "/*BEGIN*/", "/*END*/" }, 10,
+					new TextContentAssistProcessor("/*BEGIN*/",
+							new Replacement(new String[] { "/*BEGIN*/", "/*END*/" }, 10, false),
 							"/*BEGIN*/",
 							() -> "syntax BEGIN"),
-					new TextContentAssistProcessor("/*END*/", "/*END*/", () -> "syntax END"),
-					new TextContentAssistProcessor("/*ELSE*/", "/*ELSE*/", () -> "syntax ELSE"),
-					new TextContentAssistProcessor("/*ELIF", "/*ELIF */", 7, "/*ELIF*/", () -> "syntax ELIF")
+					new TextContentAssistProcessor("/*END*/", false, "/*END*/", () -> "syntax END"),
+					new TextContentAssistProcessor("/*ELSE*/", false, "/*ELSE*/", () -> "syntax ELSE"),
+					new TextContentAssistProcessor("/*ELIF", new Replacement("/*ELIF */", 7, false), "/*ELIF*/",
+							() -> "syntax ELIF")
 
 	));
 
@@ -164,32 +168,12 @@ public class UroboroSQLUtils {
 		List<IPartContentAssistProcessor> sqlTokenVariableAssistProcessors = sqlTokenVariables.stream()
 				.filter(s -> !variables.containsVariable(s))
 				.map(token -> new TokenContentAssistProcessor("/*" + token + "*/",
-						"/*" + token + "*/''",
+						"/*" + token + "*/''", false,
 						() -> "candidates calculated from identifiers."))
 				.collect(Collectors.toList());
 
 		variableAssistProcessors.addAll(sqlTokenVariableAssistProcessors);
 		return variableAssistProcessors;
-	}
-
-	public static String toCamel(final String original) {
-		if (original == null || original.isEmpty()) {
-			return "";
-		}
-		StringBuilder builder = new StringBuilder();
-		PrimitiveIterator.OfInt ci = original.trim().toLowerCase().codePoints().iterator();
-		while (ci.hasNext()) {
-			int codePoint = ci.nextInt();
-			if (codePoint == '_') {
-				if (ci.hasNext()) {
-					codePoint = ci.nextInt();
-					builder.append(Character.toChars(Character.toUpperCase(codePoint)));
-				}
-			} else {
-				builder.append(Character.toChars(codePoint));
-			}
-		}
-		return builder.toString();
 	}
 
 	public static DocumentPoint getScriptStartPoint(Document document) {
@@ -209,7 +193,7 @@ public class UroboroSQLUtils {
 		for (IdentifierNode identifierNode : identifierNodes) {
 			if (identifierNode.children().isEmpty()) {
 				if (!SqlConstants.SQL_RESERVED_WORDS.contains(identifierNode.getNode().toUpperCase())) {
-					sqlTokenVariables.add(toCamel(identifierNode.getNode()));
+					sqlTokenVariables.add(Strings.toCamel(identifierNode.getNode()));
 				}
 			} else {
 				setAllIdentifierVariables(sqlTokenVariables, identifierNode.children());
