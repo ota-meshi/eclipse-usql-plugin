@@ -519,4 +519,28 @@ public enum StatementTypes implements IType {
 			//次のtokenが有効ならエイリアスではない
 			return Optional.empty();
 	}
+		Token tableName = Iterators.asIteratorFromNext(aliasCand, Token::getPrevToken).stream()
+				.filter(t -> t.getType().isSqlEnable())
+				.findFirst().orElse(null);
+		if (tableName == null) {
+			return Optional.empty();
+		}
+		if (tableName.isReservedWord()) {
+			//予約語
+			return Optional.empty();
+		}
+		String name;
+		if (tableName.getType() == TokenType.SQL_TOKEN || tableName.getType() == TokenType.NAME) {
+			name = tableName.getNormalizeString();
+		} else {
+			return Optional.empty();
+		}
+		Token pre = tableName.getPrevToken().orElse(null);
+		//テーブル名の前があるのはテーブル名ではない
+		if (pre != null && pre.getType().isSqlEnable()) {
+			return Optional.empty();
+		}
+		return getTable(config, name);
+	}
+
 }
