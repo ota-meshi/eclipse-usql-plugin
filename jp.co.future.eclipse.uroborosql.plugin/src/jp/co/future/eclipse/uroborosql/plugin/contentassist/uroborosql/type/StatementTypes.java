@@ -120,41 +120,142 @@ public enum StatementTypes implements IType {
 			if (!token.getString().equalsIgnoreCase("SET")) {
 				return false;
 			}
-			return within(token).filter(UPDATE::equals).isPresent();
+			return Token.getPrevSiblings(token).filter(p -> Token.isUpdateWord(p)).findFirst().isPresent();
+		}
+
+		private Optional<Table> getUpdateTable(DocumentPoint tokenStart, PluginConfig config) {
+			for (Token setToken : Token.getPrevSiblingOrParents(tokenStart.getToken())
+					.filter(p -> Token.isSetWord(p))) {
+				Token updToken = Token.getPrevSiblings(setToken).filter(p -> Token.isUpdateWord(p)).findFirst()
+						.orElse(null);
+				if (updToken == null) {
+					continue;
+				}
+				Token tableToken = Token.getBetweenTokens(updToken.getNextToken().get(), setToken.getPrevToken().get())
+						.stream().filter(p -> p.getType() == TokenType.SQL_TOKEN).filter(p -> !p.isReservedWord())
+						.findFirst().orElse(null);
+				if (tableToken == null) {
+					continue;
+				}
+				return getTable(config, tableToken.getString());
+			}
+			return Optional.empty();
 		}
 	},
 	INSERT_INTO {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			int a;
-			//TODO COLS
-
-			Map<String, Function<Table, Replacement>> buildTables = new HashMap<>();
-
-			boolean soonNext = Iterators.stream(Iterators.asIterator(tokenStart.getToken(), Token::getPrevToken))
-					.filter(t -> t.getType().isSqlEnable())
-					.findFirst()
-					.filter(t -> isToken(t))
-					.isPresent();
-			if (soonNext) {
-				buildTables.put("(INS)", table -> {
-					return table.buildInsertSql(tokenStart.getReservedCaseFormatter());
-				});
+			//カラムエイリアス有
+			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
+			if (aliasTable.isPresent()) {
+				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy);
 			}
 
-			return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
+			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
+			if (soonNext) {
+				List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
+				buildTables.add(new IdentifierReplacement<>(table -> "(INS)" + table, table -> {
+					return table.buildInsertSql();
+				}));
+				return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
+			}
+
+			List<IPointCompletionProposal> result = new ArrayList<>();
+			//エイリアスなしのカラム
+			Optional<Table> insertTable = getInsertTable(tokenStart, config);
+			if (insertTable.isPresent()) {
+				result.addAll(
+						getColumnCompletionProposals(insertTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
+								col -> col.buildInsertColumn(0).toString(), col -> col.buildInsertColumn(0))));
+			}
+
+			//VALUES
+			TokenRange insColsParenthesis = findInsertParenthesis(tokenStart.getToken()).orElse(null);
+			if (insColsParenthesis != null) {
+				result.addAll(getValuesCompletionProposals(tokenStart, lazy, insColsParenthesis));
+			}
+
+			//テーブル
+			result.addAll(getTableCompletionProposals(tokenStart, lazy, config));
+			return result;
 		}
 
 		@Override
 		protected boolean isToken(Token token) {
-			if (!token.getString().equalsIgnoreCase("INTO")) {
+			if (!Token.isIntoWord(token)) {
 				return false;
 			}
-			return Token.getPrevSibling(token).filter(t -> t.getString().equalsIgnoreCase("INSERT")).isPresent();
+			return Token.getPrevSiblings(token).filter(p -> p.getType().isSqlEnable()).findFirst()
+					.filter(p -> Token.isInsertWord(p)).isPresent();
+		}
+
+		private Optional<Table> getInsertTable(DocumentPoint tokenStart, PluginConfig config) {
+			for (Token intoToken : Token.getPrevSiblingOrParents(tokenStart.getToken())
+					.filter(p -> Token.isIntoWord(p))) {
+				boolean isInsert = Token.getPrevSiblings(intoToken).filter(p -> Token.isInsertWord(p)).findFirst()
+						.isPresent();
+				if (!isInsert) {
+					continue;
+				}
+				Token tableToken = Token.getNextSiblings(intoToken).filter(p -> p.getType().isSqlEnable()).findFirst()
+						.orElse(null);
+
+				if (tableToken == null || tableToken.getType() != TokenType.SQL_TOKEN || tableToken.isReservedWord()) {
+					return Optional.empty();
+				}
+				return getTable(config, tableToken.getString());
+			}
+			return Optional.empty();
+		}
+
+		private List<IPointCompletionProposal> getValuesCompletionProposals(DocumentPoint tokenStart,
+				@SuppressWarnings("unused") boolean lazy, TokenRange insColsParenthesis) {
+
+			IPartContentAssistProcessor processor = new TextContentAssistProcessor("VALUES",
+					() -> new Replacement(buildValues(insColsParenthesis, tokenStart.getReservedCaseFormatter()),
+							false),
+					"VALUES(...)", () -> "insert values");
+
+			List<IPointCompletionProposal> result = new ArrayList<>();
+			processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
+			return result;
+		}
+
+		private List<String> buildValues(TokenRange insColsParenthesis,
+				Function<String, String> reservedCaseFormatter) {
+			List<String> result = new ArrayList<>();
+			result.add(reservedCaseFormatter.apply("Values ("));
+			boolean first = true;
+			for (TokenRange range : Token.getInParenthesis(insColsParenthesis.getStart())) {
+				Token token = range.getBetweenTokens().filter(t -> t.getType() == TokenType.SQL_TOKEN).findLast()
+						.orElse(null);
+				if (token != null) {
+					result.add((first ? "\t" : ",\t") + buildValuesValue(token));
+				} else {
+					result.add((first ? "\t" : ",\t") + "/*?*/''");
+				}
+				first = false;
+			}
+			result.add(")");
+			return result;
 		}
 	},
-	VALUES {
+	VALUES(ContentAssistProcessors.TOKEN, ContentAssistProcessors.WHITESPACE) {
+		final class ValuesTokenSet {
+			@SuppressWarnings("unused")
+			private final Token valuesToken;
+			private final TokenRange colsParenthesis;
+			private final Token valuesOpen;
+
+			ValuesTokenSet(Token valuesToken, TokenRange colsParenthesis, Token valuesOpen) {
+				this.valuesToken = valuesToken;
+				this.colsParenthesis = colsParenthesis;
+				this.valuesOpen = valuesOpen;
+			}
+		}
+
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
