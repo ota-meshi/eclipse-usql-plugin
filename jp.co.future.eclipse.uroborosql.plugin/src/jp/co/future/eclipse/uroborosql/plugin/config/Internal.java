@@ -1,9 +1,7 @@
 package jp.co.future.eclipse.uroborosql.plugin.config;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -57,6 +55,7 @@ import jp.co.future.eclipse.uroborosql.plugin.config.executor.UroboroSQLExecutor
 import jp.co.future.eclipse.uroborosql.plugin.config.utils.SQLFunction;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CacheContainerMap;
+import jp.co.future.eclipse.uroborosql.plugin.utils.PreferURLClassLoader;
 
 class Internal {
 	static abstract class AbsJavaData {
@@ -66,7 +65,7 @@ class Internal {
 			this.urls = urls;
 		}
 
-		public ClassLoader createURLClassLoader() {
+		public URLClassLoader createURLClassLoader() {
 			return Internal.createCustomClassLoader(urls);
 		}
 
@@ -114,56 +113,7 @@ class Internal {
 
 	}
 
-	private static class CustomClassLoader extends URLClassLoader {
-		private final Set<String> defined = new HashSet<>();
-		private final ClassLoader defaultClassLoader;
-
-		public CustomClassLoader(URL[] urls) {
-			//			super(URLClassLoader.newInstance(urls, Thread.currentThread().getContextClassLoader()));
-			super(urls);
-			defaultClassLoader = Thread.currentThread().getContextClassLoader();
-		}
-
-		@SuppressWarnings({ "unchecked", "rawtypes" })
-		public <T> Class<T> defineAndLoadClass(Class<? extends T> type) throws ClassNotFoundException, IOException {
-			String name = type.getName();
-			if (defined.add(name)) {
-				try (InputStream input = CustomClassLoader.class.getClassLoader()
-						.getResourceAsStream(name.replaceAll("\\.", "/") + ".class");
-						ByteArrayOutputStream output = new ByteArrayOutputStream();) {
-					copy(input, output);
-					byte[] b = output.toByteArray();
-					defineClass(name, b, 0, b.length);
-				}
-			}
-
-			return (Class) loadClass(name);
-		}
-
-		private static long copy(InputStream source, OutputStream sink)
-				throws IOException {
-			long nread = 0L;
-			byte[] buf = new byte[8192];
-			int n;
-			while ((n = source.read(buf)) > 0) {
-				sink.write(buf, 0, n);
-				nread += n;
-			}
-			return nread;
-		}
-
-		@Override
-		protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-			try {
-				return super.loadClass(name, resolve);
-			} catch (ClassNotFoundException e) {
-				return defaultClassLoader.loadClass(name);
-			}
-		}
-
-	}
-
-	public static CustomClassLoader createCustomClassLoader(Collection<?> classpaths) {
+	public static PreferURLClassLoader createCustomClassLoader(Collection<?> classpaths) {
 		List<URL> urls = new ArrayList<>();
 		for (Object object : classpaths) {
 			if (object instanceof URL) {
@@ -184,7 +134,7 @@ class Internal {
 			}
 		}
 
-		return new CustomClassLoader(urls.toArray(new URL[urls.size()]));
+		return new PreferURLClassLoader(urls.toArray(new URL[urls.size()]));
 	}
 
 	public static IProject getProject(IEditorPart editor) {
@@ -339,8 +289,7 @@ class Internal {
 		if (urls.isEmpty()) {
 			return Optional.empty();
 		}
-		try {
-			ClassLoader classLoader = createCustomClassLoader(urls);
+		try (URLClassLoader classLoader = createCustomClassLoader(urls)) {
 			ServiceLoader.load(Driver.class, classLoader).forEach(d -> {
 				try {
 					DriverManager.registerDriver(new DriverShim(d));
@@ -357,6 +306,8 @@ class Internal {
 				return Optional.empty();
 			}
 
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
 		} finally {
 			try {
 				for (Driver d : Collections.list(DriverManager.getDrivers())) {
@@ -371,23 +322,28 @@ class Internal {
 
 	public static <R> R query(IProject project, Connection conn, String sql, Map<String, ?> params,
 			SQLFunction<ResultSet, R> fn) throws SQLException {
+		class Err extends Exception {
+			public Err(String message) {
+				super(message);
+			}
+		}
 
 		try {
 			List<URL> urls = new ArrayList<>();
 			urls.add(Jdts.getURLFromJavaProject(project, "jp.co.future.uroborosql.SqlAgent")
-					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+					.orElseThrow(() -> new Err("not uroboroSQL project")));
 
 			//commons lang
 			urls.add(Jdts.getURLFromJavaProject(project, "org.apache.commons.lang3.StringUtils")
-					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+					.orElseThrow(() -> new Err("not uroboroSQL project")));
 
 			//slf4j
 			urls.add(Jdts.getURLFromJavaProject(project, "org.slf4j.Logger")
-					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+					.orElseThrow(() -> new Err("not uroboroSQL project")));
 
 			//javassist
 			urls.add(Jdts.getURLFromJavaProject(project, "javassist.ClassPool")
-					.orElseThrow(() -> new Exception("not uroboroSQL project")));
+					.orElseThrow(() -> new Err("not uroboroSQL project")));
 
 			//ognl
 			urls.add(Jdts.getURLFromJavaProject(project, "ognl.Ognl")
@@ -399,12 +355,15 @@ class Internal {
 							throw new UncheckedIOException(e);
 						}
 					}));
-			CustomClassLoader classLoader = createCustomClassLoader(urls);
-			Class<Executor> executorType = classLoader.defineAndLoadClass(UroboroSQLExecutor.class);
-			Executor executor = executorType.getConstructor().newInstance();
-			return executor.execute(conn, sql, params, fn);
+			try (PreferURLClassLoader classLoader = createCustomClassLoader(urls)) {
+				Class<Executor> executorType = classLoader.defineAndLoadClass(UroboroSQLExecutor.class);
+				Executor executor = executorType.getConstructor().newInstance();
+				return executor.execute(conn, sql, params, fn);
+			}
 		} catch (SQLException e) {
 			throw e;
+		} catch (Err e) {
+			System.out.println(e.getMessage());
 		} catch (Throwable e) {
 			e.printStackTrace();
 		} finally {
