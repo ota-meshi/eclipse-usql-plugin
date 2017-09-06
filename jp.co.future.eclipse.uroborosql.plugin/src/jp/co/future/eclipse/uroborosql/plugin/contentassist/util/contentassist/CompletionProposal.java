@@ -13,6 +13,7 @@ import org.eclipse.swt.graphics.Point;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.UroboroSQLUtils;
 import jp.co.future.eclipse.uroborosql.plugin.utils.Characters;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Eclipses;
 
 public class CompletionProposal implements IPointCompletionProposal {
 
@@ -196,12 +197,14 @@ public class CompletionProposal implements IPointCompletionProposal {
 		int cursorPosition = replacement.cursorPosition.orElse(0);
 		int linesTotalLength = 0;
 		String indent = getIndent(document, replacement.replacementOffset);
-		StringJoiner joiner = new StringJoiner("\n" + indent);
+		String lf = Eclipses.getLineDelimiter(document);
+		int lineAdditionalOffset = indent.length() + lf.length() - 1;
+		StringJoiner joiner = new StringJoiner(lf + indent);
 		for (String replacementLine : replacement.replacementStrings) {
-			linesTotalLength += replacementLine.length() + 1/*CR*/;
+			linesTotalLength += replacementLine.length() + 1;
 			if (replacement.cursorPosition.isPresent()) {
 				if (linesTotalLength <= replacement.cursorPosition.getAsInt()) {
-					cursorPosition += indent.length();
+					cursorPosition += lineAdditionalOffset;
 				}
 			}
 			joiner.add(replacementLine);

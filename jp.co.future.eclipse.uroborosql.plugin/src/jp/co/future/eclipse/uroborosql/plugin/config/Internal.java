@@ -34,7 +34,6 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.StringJoiner;
 
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.jdt.core.IClassFile;
@@ -45,8 +44,6 @@ import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.ui.IEditorPart;
-import org.eclipse.ui.IFileEditorInput;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig.DbInfo;
 import jp.co.future.eclipse.uroborosql.plugin.config.executor.Executor;
@@ -135,13 +132,6 @@ class Internal {
 		}
 
 		return new PreferURLClassLoader(urls.toArray(new URL[urls.size()]));
-	}
-
-	public static IProject getProject(IEditorPart editor) {
-		IFileEditorInput editorInput = (IFileEditorInput) editor.getEditorInput();
-		IFile file = editorInput.getFile();
-
-		return file.getProject();
 	}
 
 	private static final CacheContainerMap<Path, PluginConfig, IOException> cachePluginConfig = CacheContainer

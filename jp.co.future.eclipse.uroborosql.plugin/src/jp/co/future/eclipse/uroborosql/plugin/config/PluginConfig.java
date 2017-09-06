@@ -3,13 +3,13 @@ package jp.co.future.eclipse.uroborosql.plugin.config;
 import java.util.List;
 
 import org.eclipse.core.resources.IProject;
-import org.eclipse.datatools.sqltools.sqleditor.internal.SQLEditorPlugin;
 import org.eclipse.ui.IEditorPart;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Columns;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Tables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Eclipses;
 
 public interface PluginConfig {
 	interface DbInfos {
@@ -91,7 +91,7 @@ public interface PluginConfig {
 
 	public static PluginConfig load() {
 		try {
-			IEditorPart editor = SQLEditorPlugin.getActiveEditor();
+			IEditorPart editor = Eclipses.getActiveEditor();
 			return load(editor);
 		} catch (Throwable e) {
 			return DefaultConfig.getInstance();
@@ -99,7 +99,7 @@ public interface PluginConfig {
 	}
 
 	public static PluginConfig load(IEditorPart editor) {
-		IProject project = Internal.getProject(editor);
+		IProject project = Eclipses.getProject(editor);
 		return load(project);
 	}
 

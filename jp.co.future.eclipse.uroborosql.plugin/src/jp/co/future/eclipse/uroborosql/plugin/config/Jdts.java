@@ -40,7 +40,7 @@ public class Jdts {
 				return null;
 			}
 			try {
-				StringBuffer buf = new StringBuffer();
+				StringBuilder buf = new StringBuilder();
 				int ch;
 				while ((ch = reader.read()) != -1) {
 					buf.append((char) ch);
