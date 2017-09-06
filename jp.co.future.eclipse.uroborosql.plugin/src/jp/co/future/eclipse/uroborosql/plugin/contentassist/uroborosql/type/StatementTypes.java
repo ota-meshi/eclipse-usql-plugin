@@ -372,38 +372,151 @@ public enum StatementTypes implements IType {
 
 	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 			PluginConfig config) {
-		return getTableCompletionProposals(tokenStart, lazy, config, new HashMap<>());
+		return getTableCompletionProposals(tokenStart, lazy, config, Collections.emptyList());
 	}
 
 	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint tokenStart, boolean lazy,
-			PluginConfig config, String name, Function<Table, Replacement> buildReplacement) {
-		return getTableCompletionProposals(tokenStart, lazy, config, Maps.of(name, buildReplacement));
-	}
-
-	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint tokenStart, boolean lazy,
-			PluginConfig config, Map<String, Function<Table, Replacement>> origBuildReplacements) {
-		Map<String, Function<Table, Replacement>> buildReplacements = new HashMap<>(origBuildReplacements);
-		buildReplacements.put("", table -> {
-			return new Replacement(table.toString(), table.getName().length());
-		});
+			PluginConfig config, List<IdentifierReplacement<Table>> origBuildReplacements) {
+		List<IdentifierReplacement<Table>> buildReplacements = new ArrayList<>(origBuildReplacements);
+		buildReplacements.add(new IdentifierReplacement<>(IIdentifier::toReplacement));
 		String text = tokenStart.getRangeText();
 		Collection<Table> tables = config.getTables(text, lazy);
-		if (!lazy) {
-			return tables.stream()
-					.map(t -> t.createContentAssistProcessor(buildReplacements))
-					.flatMap(List::stream)
-					.map(p -> p.computeCompletionProposal(tokenStart))
-					.filter(o -> o.isPresent())
-					.map(o -> o.get())
-					.collect(Collectors.toList());
-		} else {
-			return tables.stream()
-					.map(t -> t.createLazyContentAssistProcessor(buildReplacements))
-					.flatMap(List::stream)
-					.map(p -> p.computeCompletionProposal(tokenStart))
-					.filter(o -> o.isPresent())
-					.map(o -> o.get())
-					.collect(Collectors.toList());
+		List<IPointCompletionProposal> result = new ArrayList<>();
+		for (Table table : tables) {
+			for (IPartContentAssistProcessor processor : lazy
+					? table.createLazyContentAssistProcessor(buildReplacements)
+					: table.createContentAssistProcessor(buildReplacements)) {
+				processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
+			}
 		}
+		return result;
+	}
+
+	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+			boolean lazy) {
+		return getColumnCompletionProposals(table, tokenStart, lazy, Collections.emptyList());
+	}
+
+	@SafeVarargs
+	protected final List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+			boolean lazy, IdentifierReplacement<Column>... buildReplacements) {
+		return getColumnCompletionProposals(table, tokenStart, lazy, Arrays.asList(buildReplacements));
+	}
+
+	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+			boolean lazy, List<IdentifierReplacement<Column>> origBuildReplacements) {
+		List<IdentifierReplacement<Column>> buildReplacements = new ArrayList<>(origBuildReplacements);
+		buildReplacements.add(new IdentifierReplacement<>(IIdentifier::toReplacement));
+		List<IPointCompletionProposal> result = new ArrayList<>();
+		for (Column column : table.getColumns()) {
+			for (IPartContentAssistProcessor processor : lazy
+					? column.createLazyContentAssistProcessor(buildReplacements)
+					: column.createContentAssistProcessor(buildReplacements)) {
+				processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
+			}
+		}
+		return result;
+	}
+
+	protected Optional<Table> getColumnAtTable(DocumentPoint tokenStart, PluginConfig config) {
+		Optional<String> name = getAtName(tokenStart);
+		if (!name.isPresent()) {
+			return Optional.empty();
+		}
+		return findAliasTable(tokenStart.getDocument(), name.get(), config);
+	}
+
+	protected Optional<Table> getTable(PluginConfig config, String tableName) {
+		return config.getTables(tableName, false).get(tableName);
+	}
+
+	protected Optional<TokenRange> findInsertParenthesis(Token valuesToken) {
+
+		Token colsCloseCand = Token.getPrevSiblings(valuesToken).filter(t -> t.getType().isSqlEnable()).findFirst()
+				.orElse(null);
+		if (colsCloseCand == null || !Token.isCloseParenthesis(colsCloseCand)) {
+			return Optional.empty();
+		}
+		Token colsOpenCand = Token.getPrevSiblings(colsCloseCand).filter(t -> t.getType().isSqlEnable()).findFirst()
+				.orElse(null);
+		if (colsOpenCand == null || !Token.isOpenParenthesis(colsOpenCand)) {
+			return Optional.empty();
+		}
+		Token intoToken = Token.getPrevSiblings(colsOpenCand).filter(p -> Token.isIntoWord(p)).findFirst()
+				.orElse(null);
+		if (intoToken == null) {
+			return Optional.empty();
+		}
+		Token insToken = Token.getPrevSiblings(intoToken).filter(p -> p.getType().isSqlEnable()).findFirst()
+				.orElse(null);
+
+		if (insToken == null || !Token.isInsertWord(insToken)) {
+			return Optional.empty();
+
+		}
+
+		return Optional.of(new TokenRange(colsOpenCand, colsCloseCand));
+	}
+
+	protected String buildValuesValue(Token token) {
+		String colname = token.getNormalizeString();
+		return "/*" + Strings.toCamel(colname) + "*/''";
+	}
+
+	private Optional<String> getAtName(DocumentPoint tokenStart) {
+
+		Token token = tokenStart.getToken();
+
+		Iterator<Token> prevs = Iterators.asIteratorFromNext(token, Token::getPrevToken)
+				.filter(t -> t.getType().isSqlEnable());
+		if (!prevs.hasNext()) {
+			return Optional.empty();
+		}
+		Token dot = prevs.next();
+		if (dot.getType() != TokenType.SYMBOL || !dot.getString().equals(".")) {
+			return Optional.empty();
+		}
+		if (!prevs.hasNext()) {
+			return Optional.empty();
+		}
+		Token at = prevs.next();
+		if (at.isReservedWord()) {
+			//予約語はエイリアスではない
+			return Optional.empty();
+		}
+		String name;
+		if (at.getType() == TokenType.SQL_TOKEN || at.getType() == TokenType.NAME) {
+			name = at.getNormalizeString();
+		} else {
+			return Optional.empty();
+		}
+		Token pre = at.getPrevToken().orElse(null);
+		//エイリアスの前があるのはエイリアスではない
+		if (pre != null && pre.getType().isSqlEnable()) {
+			return Optional.empty();
+		}
+
+		return Optional.of(name);
+	}
+
+	private Optional<Table> findAliasTable(Document document, String alias, PluginConfig config) {
+		for (Token token : document.getTokens()) {
+			if (token.getType() == TokenType.SQL_TOKEN || token.getType() == TokenType.NAME) {
+				if (token.getNormalizeString().equals(alias)) {
+					Optional<Table> table = getAliasTable(token, config);
+					if (table.isPresent()) {
+						return table;
+					}
+				}
+			}
+		}
+		return Optional.empty();
+	}
+
+	private Optional<Table> getAliasTable(Token aliasCand, PluginConfig config) {
+		Token next = aliasCand.getNextToken().orElse(null);
+		if (next != null && next.getType().isSqlEnable()) {
+			//次のtokenが有効ならエイリアスではない
+			return Optional.empty();
 	}
 }
