@@ -1,42 +1,58 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.ContentAssistProcessors;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Column;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.IIdentifier;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.IIdentifier.IdentifierReplacement;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.CompletionProposal;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.CompletionProposal.DocReplacement;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPartContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPointCompletionProposal;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.Replacement;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TextContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token.TokenRange;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
-import jp.co.future.eclipse.uroborosql.plugin.utils.Iterators;
-import jp.co.future.eclipse.uroborosql.plugin.utils.Maps;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Strings;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Iterators;
 
 public enum StatementTypes implements IType {
 	SELECT {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			//TODO カラム
-			int a;
+			//カラムエイリアス有
+			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
+			if (aliasTable.isPresent()) {
+				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy,
+						new IdentifierReplacement<Column>(
+								col -> col.buildSelectColumn(0, tokenStart.getReservedCaseFormatter()).toString(),
+								col -> col.buildSelectColumn(0, tokenStart.getReservedCaseFormatter())));
+			}
 
-			Map<String, Function<Table, Replacement>> buildTables = new HashMap<>();
-			boolean soonNext = Iterators.stream(Iterators.asIterator(tokenStart.getToken(), Token::getPrevToken))
-					.filter(t -> t.getType().isSqlEnable())
-					.findFirst()
-					.filter(t -> isToken(t))
-					.isPresent();
+			List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
+			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
 			if (soonNext) {
-				buildTables.put("(SEL)", table -> {
+				buildTables.add(new IdentifierReplacement<>(table -> "(SEL)" + table, table -> {
 					return table.buildSelectSql(tokenStart.getReservedCaseFormatter());
-				});
+				}));
 			}
 
 			return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
@@ -53,24 +69,26 @@ public enum StatementTypes implements IType {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			int a;
-			return Collections.emptyList();//TODO
+			//カラムエイリアス有
+			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
+			if (aliasTable.isPresent()) {
+				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
+						col -> col.buildConditionColumn(0).toString(), col -> col.buildConditionColumn(0)));
+			}
+			return Collections.emptyList();
 		}
 	},
 	UPDATE {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			Map<String, Function<Table, Replacement>> buildTables = new HashMap<>();
-			boolean soonNext = Iterators.stream(Iterators.asIterator(tokenStart.getToken(), Token::getPrevToken))
-					.filter(t -> t.getType().isSqlEnable())
-					.findFirst()
-					.filter(t -> isToken(t))
-					.isPresent();
+			List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
+			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
 			if (soonNext) {
-				buildTables.put("(UPD)", table -> {
+				buildTables.add(new IdentifierReplacement<>(table -> "(UPD)" + table, table -> {
 					return table.buildUpdateSql(tokenStart.getReservedCaseFormatter());
-				});
+				}));
 			}
 
 			return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
@@ -80,8 +98,21 @@ public enum StatementTypes implements IType {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
 				PluginConfig config) {
-			int a;
-			return Collections.emptyList();//TODO
+			//カラムエイリアス有
+			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
+			if (aliasTable.isPresent()) {
+				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
+						col -> col.buildSetColumn(0).toString(), col -> col.buildSetColumn(0)));
+			}
+
+			//エイリアスなしのカラム
+			Optional<Table> updateTable = getUpdateTable(tokenStart, config);
+			if (updateTable.isPresent()) {
+				return getColumnCompletionProposals(updateTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
+						col -> col.buildSetColumn(0).toString(), col -> col.buildSetColumn(0)));
+			}
+
+			return Collections.emptyList();
 		}
 
 		@Override
