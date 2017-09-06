@@ -2,13 +2,36 @@ package jp.co.future.eclipse.uroborosql.plugin.utils.collection;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public interface FluentList<E> extends List<E>, FluentIterable<E> {
 	static final FluentList<?> EMPTY = from(Collections.emptyList());
+
+	@Override
+	default FluentListIterator<E> listIterator() {
+		return listIterator(0);
+	}
+
+	@Override
+	FluentListIterator<E> listIterator(int index);
+
+	@Override
+	default OptionalInt findLastIndex(Predicate<? super E> predicate) {
+		Iterator<E> itr = reverseIterator();
+		int index = size() - 1;
+		while (itr.hasNext()) {
+			if (predicate.test(itr.next())) {
+				return OptionalInt.of(index);
+			}
+			index--;
+		}
+		return OptionalInt.empty();
+	}
 
 	@Override
 	default Stream<E> stream() {
@@ -31,22 +54,13 @@ public interface FluentList<E> extends List<E>, FluentIterable<E> {
 		};
 	}
 
-	@Override
-	default OptionalInt findLastIndex() {
-		int size = size();
-		if (size == 0) {
-			return OptionalInt.empty();
-		}
-		return OptionalInt.of(size - 1);
-	}
-
 	default FluentList<E> skip(long n) {
 		int i = (int) n;
 		return new AbstractFluentList<E>() {
 
 			@Override
 			public E get(int index) {
-				return FluentList.this.get(index - i);
+				return FluentList.this.get(index + i);
 			}
 
 			@Override

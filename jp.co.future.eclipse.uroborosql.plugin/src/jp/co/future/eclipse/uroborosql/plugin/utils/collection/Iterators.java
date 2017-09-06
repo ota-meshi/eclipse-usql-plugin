@@ -4,15 +4,31 @@ import java.util.Iterator;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class Iterators {
 
-	public static <E> FluentItarator<E> asIterator(E init, Function<E, Optional<E>> next) {
-		return new FluentItarator<E>() {
+	public static <E> FluentIterator<E> asIterator(BooleanSupplier hasNext, Supplier<? extends E> next) {
+		return new FluentIterator<E>() {
+			@Override
+			public E next() {
+				return next.get();
+			}
+
+			@Override
+			public boolean hasNext() {
+				return hasNext.getAsBoolean();
+			}
+		};
+	}
+
+	public static <E> FluentIterator<E> asIterator(E init, Function<E, Optional<E>> next) {
+		return new FluentIterator<E>() {
 			Optional<E> nextElement = Optional.ofNullable(init);
 
 			@Override
@@ -29,11 +45,11 @@ public class Iterators {
 		};
 	}
 
-	public static <E> FluentItarator<E> asIteratorFromNext(E init, Function<E, Optional<E>> next) {
+	public static <E> FluentIterator<E> asIteratorFromNext(E init, Function<E, Optional<E>> next) {
 
 		Optional<E> nextElement = next.apply(init);
 		if (!nextElement.isPresent()) {
-			return FluentItarator.empty();
+			return FluentIterator.empty();
 		}
 		return asIterator(nextElement.get(), next);
 	}
@@ -43,8 +59,8 @@ public class Iterators {
 		return StreamSupport.stream(spliterator, false);
 	}
 
-	public static <E> FluentItarator<E> filter(Iterator<E> iterator, Predicate<? super E> predicate) {
-		return FluentItarator.from(stream(iterator).filter(predicate).iterator());
+	public static <E> FluentIterator<E> filter(Iterator<E> iterator, Predicate<? super E> predicate) {
+		return FluentIterator.from(stream(iterator).filter(predicate).iterator());
 	}
 
 }
