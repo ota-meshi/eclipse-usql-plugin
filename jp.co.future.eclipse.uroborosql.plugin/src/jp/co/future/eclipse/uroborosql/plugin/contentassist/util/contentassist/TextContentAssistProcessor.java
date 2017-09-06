@@ -8,20 +8,21 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 
 public class TextContentAssistProcessor extends TestContentAssistProcessor {
 
-	public TextContentAssistProcessor(String text, String displayString, Supplier<String> additionalProposalInfo) {
-		this(text, text, text.length(), displayString, additionalProposalInfo);
+	public TextContentAssistProcessor(String text, boolean needLinefeed, String displayString,
+			Supplier<String> additionalProposalInfo) {
+		this(text, new Replacement(text, needLinefeed), displayString, additionalProposalInfo);
 	}
 
-	public TextContentAssistProcessor(String test, String replacementString, int cursorPosition, String displayString,
+	public TextContentAssistProcessor(String test, Replacement replacement,
+			String displayString,
 			Supplier<String> additionalProposalInfo) {
-		super(toHitTest(test), () -> new Replacement(replacementString, cursorPosition),
-				displayString, additionalProposalInfo);
+		this(test, () -> replacement, displayString, additionalProposalInfo);
 	}
 
-	public TextContentAssistProcessor(String test, String[] replacementLines, int cursorPosition, String displayString,
+	public TextContentAssistProcessor(String test, Supplier<Replacement> replacementSupplier,
+			String displayString,
 			Supplier<String> additionalProposalInfo) {
-		super(toHitTest(test), () -> new Replacement(replacementLines, cursorPosition),
-				displayString, additionalProposalInfo);
+		super(toHitTest(test), replacementSupplier, displayString, additionalProposalInfo);
 	}
 
 	private static Function<DocumentPoint, OptionalInt> toHitTest(String test) {
