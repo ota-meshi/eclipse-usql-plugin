@@ -264,6 +264,20 @@ public class StatementTypesTest {
 	}
 
 	@Test
+	public void testInsertValuesCols05() {
+
+		List<String> result = computeCompletionResults(
+				"insert into M_USER (ID, CAPTION -- cap\n) VALUES (/*id*/''\n,\t",
+				config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"insert into M_USER (ID, CAPTION -- cap\n) VALUES (/*id*/''\n,\t/*caption*/''\t\t-- cap|"
+
+		)));
+	}
+
+	@Test
 	public void testInsertValuesToken01() {
 
 		List<String> result = computeCompletionResults("insert into M_USER (ID, CAPTION) VALUES",
@@ -285,6 +299,19 @@ public class StatementTypesTest {
 
 		assertThat(result, is(Arrays.asList(
 				"insert into M_USER (ID, CAPTION) values (\n\t/*id*/''\n,\t/*caption*/''\n)|"
+
+		)));
+	}
+
+	@Test
+	public void testInsertValuesToken03() {
+
+		List<String> result = computeCompletionResults("insert into M_USER (ID\t-- ID\n, CAPTION\t-- キャプション\n) VAL|UE",
+				config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"insert into M_USER (ID\t-- ID\n, CAPTION\t-- キャプション\n) values (\n\t/*id*/''\t\t\t-- ID\n,\t/*caption*/''\t\t-- キャプション\n)|"
 
 		)));
 	}

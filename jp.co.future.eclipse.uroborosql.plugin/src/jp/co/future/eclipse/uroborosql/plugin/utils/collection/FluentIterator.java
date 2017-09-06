@@ -5,11 +5,11 @@ import java.util.Iterator;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-public interface FluentItarator<E> extends Iterator<E> {
+public interface FluentIterator<E> extends Iterator<E> {
 
-	static final FluentItarator<?> EMPTY = FluentItarator.from(Collections.emptyIterator());
+	static final FluentIterator<?> EMPTY = FluentIterator.from(Collections.emptyIterator());
 
-	default FluentItarator<E> filter(Predicate<? super E> predicate) {
+	default FluentIterator<E> filter(Predicate<? super E> predicate) {
 		return Iterators.filter(this, predicate);
 	}
 
@@ -17,8 +17,8 @@ public interface FluentItarator<E> extends Iterator<E> {
 		return Iterators.stream(this);
 	}
 
-	static <E> FluentItarator<E> from(Iterator<E> iterator) {
-		return new FluentItarator<E>() {
+	static <E> FluentIterator<E> from(Iterator<E> iterator) {
+		return new FluentIterator<E>() {
 
 			@Override
 			public boolean hasNext() {
@@ -38,8 +38,8 @@ public interface FluentItarator<E> extends Iterator<E> {
 	}
 
 	@SuppressWarnings("unchecked")
-	static <E> FluentItarator<E> empty() {
-		return (FluentItarator<E>) EMPTY;
+	static <E> FluentIterator<E> empty() {
+		return (FluentIterator<E>) EMPTY;
 	}
 
 }

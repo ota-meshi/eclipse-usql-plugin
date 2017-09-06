@@ -6,14 +6,23 @@ import java.util.stream.Collectors;
 public abstract class AbstractFluentList<E> extends AbstractList<E> implements FluentList<E> {
 
 	@Override
-	public FluentItarator<E> iterator() {
-		return FluentItarator.from(super.iterator());
+	public FluentIterator<E> iterator() {
+		return FluentIterator.from(super.iterator());
 	}
-
-	//TODO listIterator
 
 	@Override
 	public String toString() {
 		return stream().map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
 	}
+
+	@Override
+	public FluentListIterator<E> listIterator() {
+		return FluentList.super.listIterator();
+	}
+
+	@Override
+	public FluentListIterator<E> listIterator(int index) {
+		return FluentListIterator.from(super.listIterator(index));
+	}
+
 }
