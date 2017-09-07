@@ -129,7 +129,34 @@ public class StatementTypesTest {
 	}
 
 	@Test
-	public void testWhereCols() {
+	public void testFromCols() {
+
+		List<String> result = computeCompletionResults("select * "
+				+ "from M_MENU m "
+				+ "left join m_user u "
+				+ "on u.f", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"select * from M_MENU m left join m_user u on u.F_NAME|\t-- user first name")));
+
+		result = computeCompletionResults("select * "
+				+ "from M_MENU m "
+				+ "left join m_user u "
+				+ "on u.", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"select * from M_MENU m left join m_user u on u.E_MAIL|\t-- e-mail addr",
+				"select * from M_MENU m left join m_user u on u.F_NAME|\t-- user first name",
+				"select * from M_MENU m left join m_user u on u.ID|\t-- user id",
+				"select * from M_MENU m left join m_user u on u.L_NAME|\t-- user last name"
+
+		)));
+	}
+
+	@Test
+	public void testWhereCols01() {
 
 		List<String> result = computeCompletionResults("select * from M_MENU m where m.E", config);
 		result.forEach(System.out::println);
@@ -152,6 +179,25 @@ public class StatementTypesTest {
 	}
 
 	@Test
+	public void testWhereCols02() {
+
+		List<String> result = computeCompletionResults("select * from m_user m where m.| ", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"select * from m_user m where m.E_MAIL|\t-- e-mail addr\n ",
+				"select * from m_user m where m.E_MAIL\t\t=\t/*|eMail*/''\t\t-- e-mail addr\n ",
+				"select * from m_user m where m.F_NAME|\t-- user first name\n ",
+				"select * from m_user m where m.F_NAME\t\t=\t/*|fName*/''\t\t-- user first name\n ",
+				"select * from m_user m where m.ID|\t-- user id\n ",
+				"select * from m_user m where m.ID\t\t=\t/*|id*/''\t-- user id\n ",
+				"select * from m_user m where m.L_NAME|\t-- user last name\n ",
+				"select * from m_user m where m.L_NAME\t\t=\t/*|lName*/''\t\t-- user last name\n "
+
+		)));
+	}
+
+	@Test
 	public void testUpdateTable() {
 
 		List<String> result = computeCompletionResults("update M_M", config);
@@ -167,7 +213,7 @@ public class StatementTypesTest {
 	}
 
 	@Test
-	public void testUpdateCols() {
+	public void testUpdateCols01() {
 
 		List<String> result = computeCompletionResults("update M_MENU set E", config);
 		result.forEach(System.out::println);
@@ -196,6 +242,23 @@ public class StatementTypesTest {
 				"update M_MENU set u.E_MAIL\t\t=\t/*|eMail*/''\t\t-- e-mail addr\n where M_USER u"
 
 		)));
+	}
+
+	@Test
+	public void testUpdateCols02() {
+
+		List<String> result = computeCompletionResults("update M_MENU set u.| where M_USER u", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"update M_MENU set u.E_MAIL|\t-- e-mail addr\n where M_USER u",
+				"update M_MENU set u.E_MAIL\t\t=\t/*|eMail*/''\t\t-- e-mail addr\n where M_USER u",
+				"update M_MENU set u.F_NAME|\t-- user first name\n where M_USER u",
+				"update M_MENU set u.F_NAME\t\t=\t/*|fName*/''\t\t-- user first name\n where M_USER u",
+				"update M_MENU set u.ID|\t-- user id\n where M_USER u",
+				"update M_MENU set u.ID\t\t=\t/*|id*/''\t-- user id\n where M_USER u",
+				"update M_MENU set u.L_NAME|\t-- user last name\n where M_USER u",
+				"update M_MENU set u.L_NAME\t\t=\t/*|lName*/''\t\t-- user last name\n where M_USER u")));
 	}
 
 	@Test

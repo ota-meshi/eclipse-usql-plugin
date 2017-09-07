@@ -88,13 +88,13 @@ public enum StatementTypes implements IType {
 		@Override
 		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
 				boolean lazy, PluginConfig config) {
-			return Collections.emptyList();
+			return getColumnCompletionProposals(table, token.toDocumentPoint(), lazy);
 		}
 
 		@Override
 		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
 				boolean lazy, PluginConfig config) {
-			return Collections.emptyList();
+			return getColumnCompletionProposals(table, point, lazy);
 		}
 
 		@Override
@@ -554,11 +554,6 @@ public enum StatementTypes implements IType {
 	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint point, boolean lazy,
 			PluginConfig config) {
 		return getTableCompletionProposals(point, lazy, config, Collections.emptyList());
-	}
-
-	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint point,
-			boolean lazy) {
-		return getColumnCompletionProposals(table, point, lazy, Collections.emptyList());
 	}
 
 	@SafeVarargs
