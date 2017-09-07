@@ -2,6 +2,8 @@ package jp.co.future.eclipse.uroborosql.plugin.utils;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMember;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
@@ -32,10 +35,61 @@ import org.eclipse.jdt.core.Signature;
 import org.eclipse.jdt.ui.JavadocContentAccess;
 
 public class Jdts {
-	public static String getJavadoc(IMember member) {
+	public static String getJavadocHtml(Method method) {
+		return getMethodJavadocHtml(method.getDeclaringClass().getName(), method.getName(), method.getParameterCount());
+	}
+
+	public static String getJavadocHtml(Field field) {
+		return getFieldJavadocHtml(field.getDeclaringClass().getName(), field.getName());
+	}
+
+	public static String getJavadocHtml(Enum<?> enumValue) {
+		return getFieldJavadocHtml(enumValue.getDeclaringClass().getName(), enumValue.name());
+	}
+
+	public static String getJavadocHtml(String className) {
+		try {
+			IType type = Eclipses.findType(className);
+			return getJavadocHtml(type);
+		} catch (Throwable e) {
+		}
+		return null;
+	}
+
+	public static String getFieldJavadocHtml(String className, String fieldName) {
+		try {
+			IType type = Eclipses.findType(className);
+			return getJavadocHtml(type.getField(fieldName));
+		} catch (Throwable e) {
+		}
+		return null;
+	}
+
+	public static String getMethodJavadocHtml(String className, String methodname, int paramCount) {
+		try {
+			IType type = Eclipses.findType(className);
+
+			List<IMethod> list = new ArrayList<>();
+			for (IMethod m : type.getMethods()) {
+
+				//TODO シグニチャ見る対応
+				if (m.getElementName().equals(methodname)
+						&& m.getParameterTypes().length == paramCount) {
+					list.add(m);
+				}
+			}
+			if (list.size() == 1) {
+				return getJavadocHtml(list.get(0));
+			}
+		} catch (Throwable e) {
+		}
+		return null;
+	}
+
+	public static String getJavadocHtml(IMember member) {
 		try {
 			@SuppressWarnings("resource")
-			Reader reader = JavadocContentAccess.getContentReader(member, false);
+			Reader reader = JavadocContentAccess.getHTMLContentReader(member, true, true);
 			if (reader == null) {
 				return null;
 			}

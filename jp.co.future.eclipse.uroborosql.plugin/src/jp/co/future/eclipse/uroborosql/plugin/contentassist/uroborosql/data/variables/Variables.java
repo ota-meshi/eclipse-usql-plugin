@@ -21,7 +21,7 @@ public class Variables implements Iterable<IVariable> {
 		IVariable old = map.get(key);
 		if (old == null) {
 			map.put(key, variable);
-		} else if (old.getSqlValue() == null || old.getSqlValue().equals("''") || old.getDescription() == null) {
+		} else if (old.getValue().isEmpty() || old.getDescription() == null) {
 			map.put(key, variable.marge(old));
 		}
 		return this;

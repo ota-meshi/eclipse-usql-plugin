@@ -55,6 +55,9 @@ public class ContentAssistTestUtil {
 	private static String toSelectionDocument(Point point, IDocument document) {
 		StringBuilder sb = new StringBuilder(document.get());
 		sb.insert(point.x, "|");
+		if (point.y > 0) {
+			sb.insert(point.x + point.y + 1, "|");
+		}
 		return sb.toString();
 	}
 

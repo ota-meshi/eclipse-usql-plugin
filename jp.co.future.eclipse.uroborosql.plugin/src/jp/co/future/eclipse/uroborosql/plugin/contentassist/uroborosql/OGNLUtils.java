@@ -1,8 +1,10 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -37,7 +39,7 @@ public class OGNLUtils {
 			return new HashSet<>(Arrays.asList(astProperty.toString()));
 		} else if (node instanceof ASTMethod) {
 			ASTMethod astMethod = (ASTMethod) node;
-			return new HashSet<>(Arrays.asList(astMethod.getMethodName() + "()"));
+			return new HashSet<>(Arrays.asList(toSimpleMethod(astMethod)));
 		} else if (node instanceof ASTChain) {//nest
 			ASTChain astChain = (ASTChain) node;
 			return new HashSet<>(Arrays.asList(getChainVariableName(astChain)));
@@ -52,6 +54,22 @@ public class OGNLUtils {
 			}
 			return result;
 		}
+	}
+
+	private static String toSimpleMethod(ASTMethod astMethod) {
+
+		List<String> args = new ArrayList<>();
+		for (int i = 0; i < astMethod.jjtGetNumChildren(); i++) {
+			Node child = astMethod.jjtGetChild(i);
+
+			if (child instanceof ASTProperty) {
+				args.add(ASTProperty.class.cast(child).toString());
+			} else {
+				args.add("arg" + i);
+			}
+		}
+
+		return astMethod.getMethodName() + "(" + String.join(", ", args) + ")";
 	}
 
 	private static String getChainVariableName(ASTChain node) {

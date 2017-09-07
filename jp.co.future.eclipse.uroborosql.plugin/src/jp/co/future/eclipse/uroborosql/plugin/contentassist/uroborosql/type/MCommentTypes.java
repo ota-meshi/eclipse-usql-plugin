@@ -37,6 +37,9 @@ public enum MCommentTypes implements IType {
 				return Collections.emptyList();
 			}
 			DocumentPoint scriptStart = UroboroSQLUtils.getScriptStartPoint(commentStart.getDocument());
+			if (scriptStart == null) {
+				return Collections.emptyList();
+			}
 
 			return UroboroSQLUtils
 					.getScriptAssistProcessors(commentStart.getDocument(), lazy, config)

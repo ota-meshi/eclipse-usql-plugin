@@ -36,6 +36,7 @@ import org.eclipse.jdt.core.JavaModelException;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.VariableValue;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
 import jp.co.future.eclipse.uroborosql.plugin.utils.Jdts;
 
@@ -139,7 +140,7 @@ public class SqlContextFactoryImpl {
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(new Const(fieldName, () -> value));
+						paramMap.put(new Const(fieldName, VariableValue.of(value), () -> Jdts.getJavadocHtml(field)));
 					}
 				}
 			}
@@ -169,7 +170,8 @@ public class SqlContextFactoryImpl {
 					if (canAcceptByStandard(value)) {
 						String fieldName = constParamPrefix + fieldPrefix + field.getElementName();
 						fieldName = fieldName.toUpperCase();
-						paramMap.put(new Const(fieldName, () -> value, () -> Jdts.getJavadoc(field)));
+						paramMap.put(
+								new Const(fieldName, VariableValue.of(value), () -> Jdts.getJavadocHtml(field)));
 					}
 				}
 			}
@@ -205,7 +207,7 @@ public class SqlContextFactoryImpl {
 		for (Enum<?> value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.name().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(new Const(fieldName, () -> value));
+			paramMap.put(new Const(fieldName, VariableValue.of(value), () -> Jdts.getJavadocHtml(value)));
 		}
 	}
 
@@ -218,7 +220,8 @@ public class SqlContextFactoryImpl {
 		for (IField value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.getElementName().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(new Const(fieldName, () -> value.getElementName()/*enum name*/, () -> Jdts.getJavadoc(value)));
+			paramMap.put(new Const(fieldName, VariableValue.of(value.getElementName()/*enum name*/),
+					() -> Jdts.getJavadocHtml(value)));
 		}
 	}
 

@@ -17,7 +17,7 @@ public interface FluentIterator<E> extends Iterator<E> {
 		return Iterators.stream(this);
 	}
 
-	static <E> FluentIterator<E> from(Iterator<E> iterator) {
+	static <E> FluentIterator<E> from(Iterator<? extends E> iterator) {
 		return new FluentIterator<E>() {
 
 			@Override

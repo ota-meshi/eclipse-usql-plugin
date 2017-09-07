@@ -10,7 +10,7 @@ public interface IVariable {
 
 	String getVariableName();
 
-	String getSqlValue();
+	VariableValue getValue();
 
 	String getDescription();
 

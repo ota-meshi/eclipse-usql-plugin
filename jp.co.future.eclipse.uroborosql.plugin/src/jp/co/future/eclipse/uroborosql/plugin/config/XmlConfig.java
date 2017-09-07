@@ -38,6 +38,7 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.iden
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Table;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Tables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.VariableValue;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CacheContainerMap;
@@ -319,7 +320,7 @@ public class XmlConfig implements PluginConfig {
 				String name = labels[0].getString(rs);
 				Object value = labels[1].getObject(rs);
 				String description = labels[2].getString(rs);
-				variables.put(new Const(name, () -> value, () -> description));
+				variables.put(new Const(name, VariableValue.of(value), () -> description));
 			}
 			return variables;
 		});

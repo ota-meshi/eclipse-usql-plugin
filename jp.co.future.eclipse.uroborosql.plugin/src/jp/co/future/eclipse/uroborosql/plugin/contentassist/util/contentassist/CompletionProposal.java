@@ -22,6 +22,7 @@ public class CompletionProposal implements IPointCompletionProposal {
 		private final int replacementOffset;
 		private final int replacementLength;
 		private final OptionalInt cursorPosition;
+		private final int cursorLength;
 		private final boolean needLinefeed;
 
 		public DocReplacement(String replacementString, int replacementOffset, int replacementLength,
@@ -32,6 +33,11 @@ public class CompletionProposal implements IPointCompletionProposal {
 
 		public DocReplacement(String[] replacementStrings, int replacementOffset, int replacementLength,
 				OptionalInt cursorPosition, boolean needLinefeed) {
+			this(replacementStrings, replacementOffset, replacementLength, cursorPosition, 0, needLinefeed);
+		}
+
+		public DocReplacement(String[] replacementStrings, int replacementOffset, int replacementLength,
+				OptionalInt cursorPosition, int cursorLength, boolean needLinefeed) {
 			Assert.isNotNull(replacementStrings);
 			Assert.isTrue(replacementOffset >= 0);
 			Assert.isTrue(replacementLength >= 0);
@@ -40,6 +46,7 @@ public class CompletionProposal implements IPointCompletionProposal {
 			this.replacementOffset = replacementOffset;
 			this.replacementLength = replacementLength;
 			this.cursorPosition = cursorPosition;
+			this.cursorLength = cursorLength;
 			this.needLinefeed = needLinefeed;
 		}
 	}
@@ -73,10 +80,16 @@ public class CompletionProposal implements IPointCompletionProposal {
 
 	public CompletionProposal(int lazyPoint, String[] replacementStrings, int replacementOffset, int replacementLength,
 			int cursorPosition, boolean needLinefeed, String displayString, String additionalProposalInfo) {
+		this(lazyPoint, replacementStrings, replacementOffset, replacementLength, cursorPosition, 0, needLinefeed,
+				displayString, additionalProposalInfo);
+	}
+
+	public CompletionProposal(int lazyPoint, String[] replacementStrings, int replacementOffset, int replacementLength,
+			int cursorPosition, int cursorLength, boolean needLinefeed, String displayString,
+			String additionalProposalInfo) {
 		this(lazyPoint,
 				() -> new DocReplacement(replacementStrings, replacementOffset, replacementLength,
-						OptionalInt.of(cursorPosition),
-						needLinefeed),
+						OptionalInt.of(cursorPosition), cursorLength, needLinefeed),
 				displayString, additionalProposalInfo);
 	}
 
@@ -138,7 +151,7 @@ public class CompletionProposal implements IPointCompletionProposal {
 			cursorPosition = replacement.cursorPosition.orElse(0);
 		}
 
-		return new Point(replacement.replacementOffset + cursorPosition, 0);
+		return new Point(replacement.replacementOffset + cursorPosition, replacement.cursorLength);
 	}
 
 	@Override

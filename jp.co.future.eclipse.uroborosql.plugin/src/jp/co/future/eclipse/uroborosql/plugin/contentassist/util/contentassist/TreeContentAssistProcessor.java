@@ -1,157 +1,134 @@
 package jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.function.Supplier;
+import java.util.PrimitiveIterator;
 import java.util.stream.Collectors;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.IBranch;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.INamedNode;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.INamedNode.AssistText;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.impl.Branch;
 
 public class TreeContentAssistProcessor implements IListContentAssistProcessor {
-	private static class LazyPointProp {
+	private static class LazyPointNode {
 		private final int lazyPoint;
-		private final Prop prop;
+		private final INamedNode node;
 
-		LazyPointProp(int lazyPoint, Prop prop) {
+		LazyPointNode(int lazyPoint, INamedNode node) {
 			this.lazyPoint = lazyPoint;
-			this.prop = prop;
+			this.node = node;
 		}
 	}
 
-	private interface PropAccessor {
-		Prop createOrGet(String name, Supplier<String> additionalProposalInfo);
+	private final Branch root = IBranch.ofUnknown("root");
 
-		Prop get(String name);
+	public static Collection<LazyPointNode> getAssists(INamedNode node, String name) {
+		List<LazyPointNode> result = new ArrayList<>();
 
-		Collection<LazyPointProp> getAssists(String name);
+		node.children().distinct().forEach(n -> {
+			OptionalInt point = HitTester.hit(name, n.name());
+			if (!point.isPresent()) {
+				return;
+			}
+			result.add(new LazyPointNode(point.getAsInt(), n));
+		});
+
+		return result;
 	}
 
-	private static class Prop implements PropAccessor {
-		private final String name;
-		private final Supplier<String> additionalProposalInfo;
-
-		private final Map<String, Prop> children = new HashMap<>();
-
-		private Prop(String name, Supplier<String> additionalProposalInfo) {
-			this.name = name;
-			this.additionalProposalInfo = additionalProposalInfo;
-		}
-
-		@Override
-		public Prop createOrGet(String name, Supplier<String> additionalProposalInfo) {
-			return children
-					.computeIfAbsent(name, n -> new Prop(name, additionalProposalInfo));
-		}
-
-		@Override
-		public Prop get(String name) {
-			return children.get(name);
-		}
-
-		@Override
-		public Collection<LazyPointProp> getAssists(String name) {
-			List<LazyPointProp> result = new ArrayList<>();
-			children.forEach((k, v) -> {
-				OptionalInt point = HitTester.hit(name, k);
-				if (!point.isPresent()) {
-					return;
-				}
-				result.add(new LazyPointProp(point.getAsInt(), v));
-			});
-
-			return result;
-		}
-
-		//		@Override
-		//		public String toString() {
-		//			return "Prop [name=" + name + "]";
-		//		}
+	public void addAll(Collection<? extends INamedNode> nodes) {
+		nodes.forEach(this::add);
 	}
 
-	private final Map<String, Prop> props = new HashMap<>();
-	private final PropAccessor root = new PropAccessor() {
-
-		@Override
-		public Prop createOrGet(String name, Supplier<String> additionalProposalInfo) {
-			return props
-					.computeIfAbsent(name, n -> new Prop(name, additionalProposalInfo));
-		}
-
-		@Override
-		public Prop get(String name) {
-			return props.get(name);
-		}
-
-		@Override
-		public Collection<LazyPointProp> getAssists(String name) {
-			List<LazyPointProp> result = new ArrayList<>();
-			props.forEach((k, v) -> {
-				OptionalInt point = HitTester.hit(name, k);
-				if (!point.isPresent()) {
-					return;
-				}
-				result.add(new LazyPointProp(point.getAsInt(), v));
-			});
-
-			return result;
-		}
-	};
-
-	public void addAll(Collection<String> props, Supplier<String> additionalProposalInfo) {
-		props.forEach(p -> add(p, additionalProposalInfo));
-	}
-
-	public void add(String props, Supplier<String> additionalProposalInfo) {
-		add(props.split("\\.", -1), additionalProposalInfo);
-	}
-
-	public void add(String[] props, Supplier<String> additionalProposalInfo) {
-		PropAccessor prop = root;
-
-		for (String propName : props) {
-			prop = prop.createOrGet(propName, additionalProposalInfo);
-		}
+	public void add(INamedNode node) {
+		root.putChild(node);
 	}
 
 	@Override
 	public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint point) {
-		PropAccessor propAccess = root;
-		String[] userProps = point.getRangeText().split("\\.", -1);
+		INamedNode node = root;
+		List<String> userProps = parseProps(point.getRangeText());
 		List<String> replacementProps = new ArrayList<>();
 
-		for (int i = 0; i < userProps.length - 1; i++) {
-			Prop prop = propAccess.get(userProps[i]);
-			if (prop == null) {
+		for (int i = 0; i < userProps.size() - 1; i++) {
+			String prop = userProps.get(i);
+			INamedNode n = node.getTokenChild(prop);
+			if (n == null) {
 				return Collections.emptyList();
 			}
-			replacementProps.add(prop.name);
-			propAccess = prop;
+			replacementProps.add(prop);
+			node = n;
 		}
-		String endPropName = userProps[userProps.length - 1];
-		Collection<LazyPointProp> hits = propAccess.getAssists(endPropName);
+		String endPropName = userProps.get(userProps.size() - 1);
+		Collection<LazyPointNode> hits = getAssists(node, endPropName);
 		int replacementLength = point.getDocument().getUserOffset() - point.point();
 
 		return hits.stream()
-				.filter(p -> !endPropName.equals(p.prop.name))
+				.filter(p -> !endPropName.equals(p.node.name()))
 				.map(p -> {
-					List<String> replacementProps2 = new ArrayList<>(replacementProps);
-					replacementProps2.add(p.prop.name);
-					String replacementString = String.join(".", replacementProps2);
-					int cursorPosition = replacementString.lastIndexOf(")");
-					if (cursorPosition < 0) {
-						cursorPosition = replacementString.length();
+					AssistText assistText = p.node.createAssistText();
+					String replacementString = String.join(".", replacementProps);
+					int cursorPosition;
+					if (replacementString.isEmpty()) {
+						cursorPosition = assistText.getCursorPosition();
+						replacementString = assistText.getReplacementString();
+					} else {
+						cursorPosition = replacementString.length() + 1 + assistText.getCursorPosition();
+						replacementString += "." + assistText.getReplacementString();
 					}
 					return new CompletionProposal(p.lazyPoint, new String[] { replacementString }, point.point(),
 							replacementLength,
-							cursorPosition, false, p.prop.name, p.prop.additionalProposalInfo.get());
+							cursorPosition, assistText.getCursorLength(), false, p.node.toDisplayString(),
+							Objects.toString(p.node.additionalProposalInfo(), ""));
 				})
 				.collect(Collectors.toList());
 
+	}
+
+	private List<String> parseProps(String text) {
+		if (text.isEmpty()) {
+			return Arrays.asList("");
+		}
+		List<String> result = new ArrayList<>();
+		StringBuilder sb = new StringBuilder();
+		PrimitiveIterator.OfInt itr = text.codePoints().iterator();
+		while (itr.hasNext()) {
+			int c = itr.nextInt();
+
+			if (c == '(') {
+				sb.append(Character.toChars(c));
+				skipPair(itr, c, sb);
+				continue;
+			} else if (c == '.') {
+				result.add(sb.toString());
+				sb.setLength(0);
+			} else {
+				sb.append(Character.toChars(c));
+			}
+		}
+		result.add(sb.toString());
+		return result;
+	}
+
+	private void skipPair(PrimitiveIterator.OfInt itr, int ch, StringBuilder sb) {
+		if (ch == '(') {
+			while (itr.hasNext()) {
+				int c = itr.nextInt();
+				sb.append(Character.toChars(c));
+				if (c == '(') {
+					skipPair(itr, ch, sb);
+				} else if (c == ')') {
+					return;
+				}
+			}
+		}
 	}
 
 }

@@ -16,6 +16,7 @@ import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.IVariable;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variable;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.VariableValue;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
@@ -27,6 +28,10 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.R
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TextContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TokenContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TreeContentAssistProcessor;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.IBranch;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.IMethod;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.INamedNode;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.data.impl.Branch;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.IdentifierNode;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
@@ -77,25 +82,46 @@ public class UroboroSQLUtils {
 
 	));
 
-	public static final List<String> STR_FUNCTION_METHODS = Collections
-			.unmodifiableList(Arrays.asList(
-					"SF",
-					"SF.isEmpty()",
-					"SF.isNotEmpty()",
-					"SF.isBlank()",
-					"SF.isNotBlank()",
-					"SF.trim()",
-					"SF.trimToEmpty()",
-					"SF.left()",
-					"SF.right()",
-					"SF.mid()",
-					"SF.rightPad()",
-					"SF.rightPad()",
-					"SF.leftPad()",
-					"SF.leftPad()",
-					"SF.split()",
-					"SF.capitalize()",
-					"SF.uncapitalize()"));
+	public static final IBranch STR_FUNCTION = IBranch.ofDef("SF",
+
+			IMethod.ofDef("isEmpty", boolean.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("isNotEmpty", boolean.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("isBlank", boolean.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("isNotBlank", boolean.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("trim", String.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("trimToEmpty", String.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("left", String.class, "str", "len")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("right", String.class, "str", "len")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("mid", String.class, "str", "pos", "len")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("rightPad", String.class, "str", "size")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("rightPad", String.class, "str", "size", "padChar")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("leftPad", String.class, "str", "size")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("leftPad", String.class, "str", "size", "padChar")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("split", String[].class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("split", String[].class, "str", "separatorChar")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("split", String[].class, "str", "separatorChars", "max")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("capitalize", String.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction"),
+			IMethod.ofDef("uncapitalize", String.class, "str")
+					.setClassName("jp.co.future.uroborosql.utils.StringFunction")
+
+	).setClassName("jp.co.future.uroborosql.utils.StringFunction");
 
 	public static boolean withinScript(DocumentPoint commentStart) {
 		String viewText = commentStart.getRangeText();
@@ -111,29 +137,48 @@ public class UroboroSQLUtils {
 		TreeContentAssistProcessor contentAssistProcessor = new TreeContentAssistProcessor();
 
 		//string functions
-		contentAssistProcessor.addAll(STR_FUNCTION_METHODS, () -> "String Function script");
+		contentAssistProcessor.add(STR_FUNCTION);
 
 		//定数
-		config.getConsts().forEach(v -> contentAssistProcessor.add(v.getVariableName(), () -> v.getActDescription()));
+		config.getConsts().forEach(
+				v -> contentAssistProcessor.add(IBranch.ofValue(v.getVariableName(), v.getValue().getOriginal())
+						.setGetAdditionalProposalInfo(() -> v.getActDescription())));
 		if (lazy) {
 			//TODO
 		}
 
 		//すでに利用しているスクリプト
-		contentAssistProcessor.addAll(document.getTokens().stream()
+		Set<String> names = document.getTokens().stream()
 				.filter(t -> t.getType() == TokenType.M_COMMENT)
 				.map(t -> getScripts(t, document, config))
 				.flatMap(Set::stream)
-				.collect(Collectors.toSet()), () -> "used script.");
+				.collect(Collectors.toSet());
+		Collection<INamedNode> nodes = splitNamedNodes(names, "used script.");
+		contentAssistProcessor.addAll(nodes);
 
 		//SQLの中から可能性のある変数名
 		Set<String> sqlTokenVariables = new HashSet<>();
 		setAllIdentifierVariables(sqlTokenVariables, document.getIdentifierNodes());
 
-		contentAssistProcessor.addAll(sqlTokenVariables,
-				() -> "candidates calculated from identifiers.");
+		nodes = splitNamedNodes(sqlTokenVariables, "candidates calculated from identifiers.");
+		contentAssistProcessor.addAll(nodes);
 
 		return contentAssistProcessor;
+	}
+
+	private static Collection<INamedNode> splitNamedNodes(Collection<String> collection,
+			String additionalProposalInfo) {
+		Branch root = IBranch.ofUnknown("root");
+		for (String s : collection) {
+			List<String> parents = new ArrayList<>();
+			for (String name : s.split("\\.")) {
+				INamedNode node = INamedNode.ofUnknownToken(name).setAdditionalProposalInfo(additionalProposalInfo);
+				root.putChild(parents, node);
+				parents.add(name);
+			}
+		}
+		return root.children().stream().collect(Collectors.toList());
+
 	}
 
 	public static List<IPartContentAssistProcessor> getAllVariableAssistProcessors(Document document,
@@ -152,7 +197,7 @@ public class UroboroSQLUtils {
 		List<IPartContentAssistProcessor> variableAssistProcessors = new ArrayList<>();
 
 		for (IVariable variable : variables.variables()) {
-			if (STR_FUNCTION_METHODS.contains(variable.getVariableName())) {
+			if (STR_FUNCTION.name().equals(variable.getVariableName())) {
 				continue;
 			}
 			if (!lazy) {
@@ -180,12 +225,30 @@ public class UroboroSQLUtils {
 		DocumentScanner scanner = document.createDocumentScanner();
 		while (scanner.hasPrevious()) {
 			char c = scanner.previous();
+			if (c == ')') {
+				skipPrevPair(scanner, c);
+				continue;
+			}
 			if (!Character.isJavaIdentifierPart(c) && c != '.' && c != '#') {
 				scanner.next();
 				return scanner.toDocumentPoint();
 			}
 		}
 		return null;
+	}
+
+	public static void skipPrevPair(DocumentScanner scanner, char ch) {
+		if (ch == ')') {
+			while (scanner.hasPrevious()) {
+				char c = scanner.previous();
+				if (c == ')') {
+					skipPrevPair(scanner, c);
+					continue;
+				} else if (c == '(') {
+					return;
+				}
+			}
+		}
 	}
 
 	private static void setAllIdentifierVariables(Set<String> sqlTokenVariables,
@@ -207,12 +270,12 @@ public class UroboroSQLUtils {
 		if (scriptVariables.type == ScriptType.VALIABLE) {
 			String sqlValue = getVariableSqlValue(commentToken);
 			return scriptVariables.variableNames.stream()
-					.map(s -> new Variable(s, sqlValue))
+					.map(s -> new Variable(s, VariableValue.ofLiteral(sqlValue)))
 					.collect(Variables.toVariables());
 		} else if (scriptVariables.type == ScriptType.CONST) {
 			String sqlValue = getVariableSqlValue(commentToken);
 			return scriptVariables.variableNames.stream()
-					.map(s -> new Const(s, sqlValue))
+					.map(s -> new Const(s, VariableValue.ofLiteral(sqlValue)))
 					.collect(Variables.toVariables());
 		} else {
 			return scriptVariables.variableNames.stream()

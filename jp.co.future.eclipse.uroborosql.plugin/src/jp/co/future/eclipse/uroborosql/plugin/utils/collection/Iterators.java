@@ -1,5 +1,6 @@
 package jp.co.future.eclipse.uroborosql.plugin.utils.collection;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.Spliterator;
@@ -54,7 +55,7 @@ public class Iterators {
 		return asIterator(nextElement.get(), next);
 	}
 
-	public static <E> Stream<E> stream(Iterator<E> iterator) {
+	public static <E> Stream<E> stream(Iterator<? extends E> iterator) {
 		Spliterator<E> spliterator = Spliterators.spliteratorUnknownSize(iterator, 0);
 		return StreamSupport.stream(spliterator, false);
 	}
@@ -63,4 +64,18 @@ public class Iterators {
 		return FluentIterator.from(stream(iterator).filter(predicate).iterator());
 	}
 
+	@SafeVarargs
+	public static <E> FluentIterator<E> concat(Supplier<? extends Iterator<? extends E>>... iterators) {
+		return FluentIterator.from(Arrays.stream(iterators)
+				.map(s -> s.get())
+				.flatMap(itr -> stream(itr))
+				.iterator());
+	}
+
+	@SafeVarargs
+	public static <E> FluentIterator<E> concat(Iterator<E>... iterators) {
+		return FluentIterator.from(Arrays.stream(iterators)
+				.flatMap(itr -> stream(itr))
+				.iterator());
+	}
 }

@@ -135,20 +135,26 @@ public class UroboroSQLContentAssistProcessorTest {
 
 		assertThat(result, is(
 				Arrays.asList(
-						"/*IF SF.capitalize(|)",
-						"/*IF SF.isBlank(|)",
-						"/*IF SF.isEmpty(|)",
-						"/*IF SF.isNotBlank(|)",
-						"/*IF SF.isNotEmpty(|)",
-						"/*IF SF.leftPad(|)",
-						"/*IF SF.left(|)",
-						"/*IF SF.mid(|)",
-						"/*IF SF.rightPad(|)",
-						"/*IF SF.right(|)",
-						"/*IF SF.split(|)",
-						"/*IF SF.trimToEmpty(|)",
-						"/*IF SF.trim(|)",
-						"/*IF SF.uncapitalize(|)")));
+						"/*IF SF.capitalize(|_str|)",
+						"/*IF SF.isBlank(|_str|)",
+						"/*IF SF.isEmpty(|_str|)",
+						"/*IF SF.isNotBlank(|_str|)",
+						"/*IF SF.isNotEmpty(|_str|)",
+						"/*IF SF.leftPad(|_str, _size|)",
+						"/*IF SF.leftPad(|_str, _size, _padChar|)",
+						"/*IF SF.left(|_str, _len|)",
+						"/*IF SF.mid(|_str, _pos, _len|)",
+						"/*IF SF.rightPad(|_str, _size|)",
+						"/*IF SF.rightPad(|_str, _size, _padChar|)",
+						"/*IF SF.right(|_str, _len|)",
+						"/*IF SF.split(|_str|)",
+						"/*IF SF.split(|_str, _separatorChars, _max|)",
+						"/*IF SF.split(|_str, _separatorChar|)",
+						"/*IF SF.trimToEmpty(|_str|)",
+						"/*IF SF.trim(|_str|)",
+						"/*IF SF.uncapitalize(|_str|)"
+
+				)));
 
 		result = computeCompletionResults("/*IF data.a */ /*IF d");
 
@@ -175,8 +181,23 @@ public class UroboroSQLContentAssistProcessorTest {
 		result = computeCompletionResults("/*IF data.ab && data.ac */ /*ELIF data.a");
 
 		assertThat(result, is(Arrays.asList(
+
 				"/*IF data.ab && data.ac */ /*ELIF data.ab|",
-				"/*IF data.ab && data.ac */ /*ELIF data.ac|")));
+				"/*IF data.ab && data.ac */ /*ELIF data.ac|"
+
+		)));
+	}
+
+	@Test
+	public void testComputeCompletionProposals04_2() {
+		List<String> result = computeCompletionResults("/*IF data.ab && data.ac */ /*ELIF data.a");
+
+		assertThat(result, is(Arrays.asList(
+
+				"/*IF data.ab && data.ac */ /*ELIF data.ab|",
+				"/*IF data.ab && data.ac */ /*ELIF data.ac|"
+
+		)));
 	}
 
 	@Test

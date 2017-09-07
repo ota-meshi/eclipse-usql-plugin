@@ -17,6 +17,10 @@ import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.preferences.IPreferencesService;
 import org.eclipse.core.runtime.preferences.InstanceScope;
+import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -185,6 +189,16 @@ public class Eclipses {
 		MessageConsole newConsole = new MessageConsole(name, null);
 		conMan.addConsoles(new IConsole[] { newConsole });
 		return newConsole;
+	}
+
+	public static IType findType(String className) {
+		IProject project = Eclipses.getProject(Eclipses.getActiveEditor());
+		IJavaProject javaProject = JavaCore.create(project);
+		try {
+			return javaProject.findType(className);
+		} catch (JavaModelException e) {
+			return null;
+		}
 	}
 
 	private static String getUseLineDelimiter(String string) {

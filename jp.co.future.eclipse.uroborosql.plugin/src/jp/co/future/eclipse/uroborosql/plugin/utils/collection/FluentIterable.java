@@ -43,6 +43,10 @@ public interface FluentIterable<E> extends Iterable<E> {
 		return Iterables.sorted(this, comparator);
 	}
 
+	default FluentIterable<E> distinct() {
+		return Iterables.distinct(this);
+	}
+
 	default Stream<E> stream() {
 		return Iterables.stream(this);
 	}
@@ -119,7 +123,7 @@ public interface FluentIterable<E> extends Iterable<E> {
 		return from(Arrays.asList(values));
 	}
 
-	static <E> FluentIterable<E> from(Iterable<E> iterable) {
+	static <E> FluentIterable<E> from(Iterable<? extends E> iterable) {
 		return new AbstractFluentIterable<E>() {
 
 			@Override
@@ -128,4 +132,5 @@ public interface FluentIterable<E> extends Iterable<E> {
 			}
 		};
 	}
+
 }
