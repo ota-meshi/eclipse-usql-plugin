@@ -33,6 +33,7 @@ import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Function;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.FileLocator;
@@ -45,6 +46,7 @@ import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 
+import jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin;
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig.DbInfo;
 import jp.co.future.eclipse.uroborosql.plugin.config.executor.Executor;
 import jp.co.future.eclipse.uroborosql.plugin.config.executor.JdbcExecutor;
@@ -52,6 +54,7 @@ import jp.co.future.eclipse.uroborosql.plugin.config.executor.UroboroSQLExecutor
 import jp.co.future.eclipse.uroborosql.plugin.config.utils.SQLFunction;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer;
 import jp.co.future.eclipse.uroborosql.plugin.utils.CacheContainer.CacheContainerMap;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Jdts;
 import jp.co.future.eclipse.uroborosql.plugin.utils.PreferURLClassLoader;
 
 class Internal {
@@ -268,7 +271,7 @@ class Internal {
 				.findFirst();
 	}
 
-	public static <R> Optional<R> connect(IProject project, DbInfo dbInfo, SQLFunction<Connection, R> f) {
+	public static <R> Optional<R> connect(IProject project, DbInfo dbInfo, Function<Connection, R> f) {
 
 		URL classUrl = getDriverUrlFromJavaProject(project, dbInfo.getDriver());
 		List<Object> urls = new ArrayList<>();
@@ -284,7 +287,7 @@ class Internal {
 				try {
 					DriverManager.registerDriver(new DriverShim(d));
 				} catch (Exception e) {
-					e.printStackTrace();
+					UroboroSQLPlugin.printConsole(e);
 				}
 			});
 
@@ -292,7 +295,7 @@ class Internal {
 					dbInfo.getPassword())) {
 				return Optional.ofNullable(f.apply(connection));
 			} catch (SQLException e) {
-				e.printStackTrace();
+				UroboroSQLPlugin.printConsole(e);
 				return Optional.empty();
 			}
 
@@ -353,9 +356,9 @@ class Internal {
 		} catch (SQLException e) {
 			throw e;
 		} catch (Err e) {
-			System.out.println(e.getMessage());
+			UroboroSQLPlugin.printConsole(e.getMessage());
 		} catch (Throwable e) {
-			e.printStackTrace();
+			UroboroSQLPlugin.printConsole(e);
 		} finally {
 		}
 		Executor executor = new JdbcExecutor();

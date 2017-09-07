@@ -1,11 +1,17 @@
 package jp.co.future.eclipse.uroborosql.plugin;
 
+import java.io.PrintStream;
+
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
+import org.eclipse.ui.console.MessageConsole;
+import org.eclipse.ui.console.MessageConsoleStream;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
+
+import jp.co.future.eclipse.uroborosql.plugin.utils.Eclipses;
 
 /**
  * The activator class controls the plug-in life cycle
@@ -59,5 +65,28 @@ public class UroboroSQLPlugin extends AbstractUIPlugin {
 	protected void initializeImageRegistry(ImageRegistry registry) {
 		registry.put(ICON_KEY,
 				ImageDescriptor.createFromURL(FileLocator.find(getBundle(), new Path("icons/uroborosql.ico"), null)));
+	}
+
+	public static void printConsole(String message) {
+		MessageConsole console = Eclipses.getConsole(PLUGIN_ID + ".console");
+		if (console == null) {
+			System.out.println(message);
+			return;
+		}
+		@SuppressWarnings("resource")
+		MessageConsoleStream out = console.newMessageStream();
+		out.println(message);
+	}
+
+	public static void printConsole(Throwable e) {
+		MessageConsole console = Eclipses.getConsole(PLUGIN_ID + ".console");
+		if (console == null) {
+			e.printStackTrace();
+			return;
+		}
+		MessageConsoleStream out = console.newMessageStream();
+		@SuppressWarnings("resource")
+		PrintStream ps = new PrintStream(out);
+		e.printStackTrace(ps);
 	}
 }
