@@ -74,12 +74,33 @@ public class Jdts {
 
 				//TODO シグニチャ見る対応
 				if (m.getElementName().equals(methodname)
-						&& m.getParameterTypes().length == paramCount) {
+						&& m.getNumberOfParameters() == paramCount) {
 					list.add(m);
 				}
 			}
 			if (list.size() == 1) {
 				return getJavadocHtml(list.get(0));
+			}
+		} catch (Throwable e) {
+		}
+		return null;
+	}
+
+	public static String[] getMethodtParameterNames(String className, String methodname, int paramCount) {
+		try {
+			IType type = Eclipses.findType(className);
+
+			List<IMethod> list = new ArrayList<>();
+			for (IMethod m : type.getMethods()) {
+
+				//TODO シグニチャ見る対応
+				if (m.getElementName().equals(methodname)
+						&& m.getNumberOfParameters() == paramCount) {
+					list.add(m);
+				}
+			}
+			if (list.size() == 1) {
+				return list.get(0).getParameterNames();
 			}
 		} catch (Throwable e) {
 		}
