@@ -37,6 +37,7 @@ import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Const;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.variables.Variables;
+import jp.co.future.eclipse.uroborosql.plugin.utils.Jdts;
 
 public class SqlContextFactoryImpl {
 

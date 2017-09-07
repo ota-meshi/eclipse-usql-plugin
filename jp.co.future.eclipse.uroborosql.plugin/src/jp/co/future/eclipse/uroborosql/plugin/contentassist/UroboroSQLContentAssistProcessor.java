@@ -12,6 +12,7 @@ import org.eclipse.jface.text.contentassist.IContentAssistProcessor;
 import org.eclipse.jface.text.contentassist.IContextInformation;
 import org.eclipse.jface.text.contentassist.IContextInformationValidator;
 
+import jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin;
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.ContentAssistProcessors;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.Document;
@@ -105,7 +106,7 @@ public class UroboroSQLContentAssistProcessor implements IContentAssistProcessor
 			return completionProposals;
 
 		} catch (Exception e) {
-			e.printStackTrace();
+			UroboroSQLPlugin.printConsole(e);
 			return Collections.emptyList();
 		}
 	}

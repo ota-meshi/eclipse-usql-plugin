@@ -1,14 +1,18 @@
 package jp.co.future.eclipse.uroborosql.plugin.utils;
 
+import java.util.PrimitiveIterator;
+
 import org.eclipse.core.filebuffers.FileBuffers;
 import org.eclipse.core.filebuffers.ITextFileBuffer;
 import org.eclipse.core.filebuffers.ITextFileBufferManager;
+import org.eclipse.core.filebuffers.LocationKind;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ProjectScope;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.preferences.IPreferencesService;
@@ -19,6 +23,10 @@ import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.console.ConsolePlugin;
+import org.eclipse.ui.console.IConsole;
+import org.eclipse.ui.console.IConsoleManager;
+import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.part.MultiPageEditorPart;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.ui.texteditor.ITextEditor;
@@ -51,7 +59,7 @@ public class Eclipses {
 		return editorInput.getFile();
 	}
 
-	private static ITextEditor getTextEditor(IEditorPart editor) {
+	public static ITextEditor getTextEditor(IEditorPart editor) {
 
 		if (editor instanceof ITextEditor) {
 			return (ITextEditor) editor;
@@ -111,13 +119,15 @@ public class Eclipses {
 			} else {
 				resource = getFile(getActiveEditor());
 			}
-			return getLineDelimiter(resource);
-		} catch (Exception e) {
-			e.printStackTrace();
-			return "\n";
+			String delimiter = getLineDelimiter(resource);
+			if (delimiter == null) {
+				delimiter = getUseLineDelimiter(document.get());
+			}
+			return delimiter;
 		} catch (ExceptionInInitializerError | NoClassDefFoundError e) {
-			e.printStackTrace();
-			return "\n";
+			return getUseLineDelimiter(document.get());
+		} catch (Exception e) {
+			return getUseLineDelimiter(document.get());
 		}
 	}
 
@@ -141,5 +151,71 @@ public class Eclipses {
 			delimiter = System.getProperty(Platform.PREF_LINE_SEPARATOR);
 		}
 		return delimiter;
+	}
+
+	public static IDocument getDocumentFromFileBuffers(IFile file) {
+		IPath path = file.getFullPath();
+		ITextFileBufferManager manager = FileBuffers.getTextFileBufferManager();
+		try {
+			manager.connect(path, LocationKind.IFILE, null);
+			try {
+				ITextFileBuffer buffer = manager.getTextFileBuffer(path, LocationKind.IFILE);
+				return buffer.getDocument();
+			} finally {
+				manager.disconnect(path, LocationKind.IFILE, null);
+			}
+		} catch (CoreException e) {
+			return null;
+		}
+	}
+
+	public static MessageConsole getConsole(String name) {
+		ConsolePlugin plugin = ConsolePlugin.getDefault();
+		if (plugin == null) {
+			return null;
+		}
+		IConsoleManager conMan = plugin.getConsoleManager();
+		IConsole[] existing = conMan.getConsoles();
+		for (IConsole element : existing) {
+			if (name.equals(element.getName())) {
+				return (MessageConsole) element;
+			}
+		}
+		// no console found, so create a new one
+		MessageConsole newConsole = new MessageConsole(name, null);
+		conMan.addConsoles(new IConsole[] { newConsole });
+		return newConsole;
+	}
+
+	private static String getUseLineDelimiter(String string) {
+		int cr = 0;
+		int lf = 0;
+		int crlf = 0;
+
+		PrimitiveIterator.OfInt itr = string.codePoints().iterator();
+		while (itr.hasNext()) {
+			int c = itr.nextInt();
+			if (c == '\n') {
+				lf++;
+			} else if (c == '\r') {
+				if (itr.hasNext()) {
+					int c2 = itr.nextInt();
+					if (c2 == '\n') {
+						crlf++;
+					} else if (c2 == '\r') {
+						cr += 2;
+					}
+				} else {
+					cr++;
+				}
+			}
+		}
+		if (lf >= crlf && lf >= cr) {
+			return "\n";
+		} else if (crlf >= cr) {
+			return "\r\n";
+		} else {
+			return "\r";
+		}
 	}
 }

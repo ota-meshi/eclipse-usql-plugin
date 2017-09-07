@@ -12,12 +12,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -28,6 +26,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
+import jp.co.future.eclipse.uroborosql.plugin.UroboroSQLPlugin;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.ClassesData;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.LabelMetadata;
 import jp.co.future.eclipse.uroborosql.plugin.config.Internal.PackagesData;
@@ -123,32 +122,6 @@ public class XmlConfig implements PluginConfig {
 		return tables;
 	}
 
-	private boolean testTableLength(String text) {
-		Optional<String> optMin = getTarget("contentassist", "tables", "minlength").value();
-		if (optMin.isPresent()) {
-			int minlength;
-			try {
-				minlength = Integer.parseInt(optMin.get());
-				if (text.length() < minlength) {
-					return false;
-				}
-			} catch (NumberFormatException e) {
-			}
-		}
-		optMin = getTarget("contentassist", "tables", "minbytes").value();
-		if (optMin.isPresent()) {
-			int minbytes;
-			try {
-				minbytes = Integer.parseInt(optMin.get());
-				if (text.getBytes(StandardCharsets.UTF_8).length < minbytes) {
-					return false;
-				}
-			} catch (NumberFormatException e) {
-			}
-		}
-		return text.length() >= 3 || text.getBytes(StandardCharsets.UTF_8).length >= 6;
-	}
-
 	@Override
 	public Columns getColumn(Table table) {
 		try {
@@ -157,22 +130,15 @@ public class XmlConfig implements PluginConfig {
 				if (selects.isEmpty()) {
 					return new Columns();
 				}
-				Map<String, Map<Integer, String>> dbMap = new HashMap<>();
-				for (int i = 0; i < selects.size(); i++) {
-					AttributableValue select = selects.get(i);
-					String db = select.attr("db").orElse("");
-					dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
-				}
-
 				Columns result = new Columns();
-				dbMap.forEach((db, sels) -> {
-					DbInfo dbInfo = getDbInfo(db);
-					Internal.connect(project, dbInfo, conn -> {
-						for (Map.Entry<Integer, String> e : sels.entrySet()) {
-							result.addAll(loadColumns(conn, e.getValue(), table, e.getKey()));
-						}
-						return null;
-					});
+				eachSql(selects, (conn, sel, priority) -> {
+					try {
+						result.addAll(loadColumns(conn, sel, table, priority));
+					} catch (SQLException e) {
+						UroboroSQLPlugin.printConsole(e);
+					}
+					return null;
+
 				});
 				return result;
 			});
@@ -222,11 +188,41 @@ public class XmlConfig implements PluginConfig {
 	public int sql(String sql) {
 		DbInfo dbInfo = getDbInfo("");
 		return Internal.connect(project, dbInfo, conn -> {
-			conn.setAutoCommit(true);
-			try (PreparedStatement ps = conn.prepareStatement(sql)) {
-				return ps.executeUpdate();
+			try {
+				conn.setAutoCommit(true);
+				try (PreparedStatement ps = conn.prepareStatement(sql)) {
+					return ps.executeUpdate();
+				}
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
 			}
 		}).orElse(0);
+	}
+
+	private boolean testTableLength(String text) {
+		Optional<String> optMin = getTarget("contentassist", "tables", "minlength").value();
+		if (optMin.isPresent()) {
+			int minlength;
+			try {
+				minlength = Integer.parseInt(optMin.get());
+				if (text.length() < minlength) {
+					return false;
+				}
+			} catch (NumberFormatException e) {
+			}
+		}
+		optMin = getTarget("contentassist", "tables", "minbytes").value();
+		if (optMin.isPresent()) {
+			int minbytes;
+			try {
+				minbytes = Integer.parseInt(optMin.get());
+				if (text.getBytes(StandardCharsets.UTF_8).length < minbytes) {
+					return false;
+				}
+			} catch (NumberFormatException e) {
+			}
+		}
+		return text.length() >= 3 || text.getBytes(StandardCharsets.UTF_8).length >= 6;
 	}
 
 	/**
@@ -259,21 +255,15 @@ public class XmlConfig implements PluginConfig {
 			return new Variables();
 		}
 
-		Map<String, Set<String>> dbMap = new HashMap<>();
-		for (AttributableValue select : selects) {
-			String db = select.attr("db").orElse("");
-			dbMap.computeIfAbsent(db, k -> new HashSet<>()).add(select.value());
-		}
-
 		Variables variables = new Variables();
-		dbMap.forEach((db, sels) -> {
-			DbInfo dbInfo = getDbInfo(db);
-			Internal.connect(project, dbInfo, conn -> {
-				for (String sel : sels) {
-					variables.putAll(loadDbConst(conn, sel));
-				}
-				return null;
-			});
+		eachSql(selects, (conn, sel, priority) -> {
+			try {
+				variables.putAll(loadDbConst(conn, sel));
+			} catch (SQLException e) {
+				UroboroSQLPlugin.printConsole(e);
+			}
+			return null;
+
 		});
 
 		return variables;
@@ -286,24 +276,17 @@ public class XmlConfig implements PluginConfig {
 			return Collections.emptyList();
 		}
 
-		Map<String, Map<Integer, String>> dbMap = new HashMap<>();
-		for (int i = 0; i < selects.size(); i++) {
-			AttributableValue select = selects.get(i);
-			String db = select.attr("db").orElse("");
-			dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
-		}
+		return eachSql(selects, (conn, sel, priority) -> {
+			try {
+				return loadTables(conn, sel, text, priority);
+			} catch (SQLException e) {
+				UroboroSQLPlugin.printConsole(e);
+				return Collections.<Table> emptyList();
+			}
 
-		Set<Table> result = new HashSet<>();
-		dbMap.forEach((db, sels) -> {
-			DbInfo dbInfo = getDbInfo(db);
-			Internal.connect(project, dbInfo, conn -> {
-				for (Map.Entry<Integer, String> e : sels.entrySet()) {
-					result.addAll(loadTables(conn, e.getValue(), text, e.getKey()));
-				}
-				return null;
-			});
-		});
-		return result;
+		}).stream()
+				.flatMap(Collection::stream)
+				.collect(Collectors.toList());
 	}
 
 	private Collection<Table> lazyfindTablesFromDb(String text) {
@@ -312,24 +295,17 @@ public class XmlConfig implements PluginConfig {
 			return Collections.emptyList();
 		}
 
-		Map<String, Map<Integer, String>> dbMap = new HashMap<>();
-		for (int i = 0; i < selects.size(); i++) {
-			AttributableValue select = selects.get(i);
-			String db = select.attr("db").orElse("");
-			dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
-		}
+		return eachSql(selects, (conn, sel, priority) -> {
+			try {
+				return loadTables(conn, sel, text, priority);
+			} catch (SQLException e) {
+				UroboroSQLPlugin.printConsole(e);
+				return Collections.<Table> emptyList();
+			}
 
-		Set<Table> result = new HashSet<>();
-		dbMap.forEach((db, sels) -> {
-			DbInfo dbInfo = getDbInfo(db);
-			Internal.connect(project, dbInfo, conn -> {
-				for (Map.Entry<Integer, String> e : sels.entrySet()) {
-					result.addAll(loadTables(conn, e.getValue(), text, e.getKey()));
-				}
-				return null;
-			});
-		});
-		return result;
+		}).stream()
+				.flatMap(Collection::stream)
+				.collect(Collectors.toList());
 	}
 
 	private Variables loadDbConst(Connection conn, String select) throws SQLException {
@@ -412,6 +388,30 @@ public class XmlConfig implements PluginConfig {
 	private ITarget getTarget(String... tags) {
 		Element root = document.getDocumentElement();
 		return ITarget.get(root, tags);
+	}
+
+	interface ExecSQL<R> {
+		R exec(Connection conn, String sql, int priority);
+	}
+
+	private <R> List<R> eachSql(List<AttributableValue> sqls, ExecSQL<R> exec) {
+		Map<String, Map<Integer, String>> dbMap = new HashMap<>();
+		for (int i = 0; i < sqls.size(); i++) {
+			AttributableValue sql = sqls.get(i);
+			String db = sql.attr("db").orElse("");
+			dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, sql.value());
+		}
+		List<R> result = new ArrayList<>();
+		dbMap.forEach((db, ss) -> {
+			DbInfo dbInfo = getDbInfo(db);
+			Internal.connect(project, dbInfo, conn -> {
+				for (Map.Entry<Integer, String> entry : ss.entrySet()) {
+					result.add(exec.exec(conn, entry.getValue(), entry.getKey()));
+				}
+				return null;
+			});
+		});
+		return result;
 	}
 
 }
