@@ -2,12 +2,15 @@ package jp.co.future.eclipse.uroborosql.plugin.contentassist.util;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 
 import org.eclipse.jface.text.IDocument;
 
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.IdentifierNode;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.SqlParser;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
+import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Iterators;
 
 public class Document {
 
@@ -31,6 +34,10 @@ public class Document {
 
 	public Document(IDocument document, int userOffset) {
 		this(document.get(), userOffset);
+	}
+
+	public DocumentPoint getUserOffsetDocumentPoint() {
+		return new DocumentPoint(this, userOffset);
 	}
 
 	public int getUserOffset() {
@@ -71,5 +78,32 @@ public class Document {
 
 	public DocumentScanner createDocumentScanner() {
 		return new DocumentScanner(this, userOffset);
+	}
+
+	public Function<String, String> getReservedCaseFormatter() {
+		Token token = getUserOffsetToken();
+
+		return Iterators.asIteratorFromNext(token, Token::getPrevToken).stream()
+				.filter(prev -> prev.isReservedWord())
+				.findFirst()
+				.map(prev -> Optional.of(prev))
+				.orElseGet(() -> {
+					return getTokens().stream()
+							.filter(prev -> prev.isReservedWord())
+							.findFirst();
+				})
+				.<Function<String, String>> map(prev -> {
+					return isUpperCase(prev.getString()) ? String::toUpperCase
+							: isLowerCase(prev.getString()) ? String::toLowerCase : s -> s;
+				})
+				.orElse(s -> s);
+	}
+
+	private boolean isLowerCase(String string) {
+		return string.toLowerCase().equals(string);
+	}
+
+	private boolean isUpperCase(String string) {
+		return string.toUpperCase().equals(string);
 	}
 }

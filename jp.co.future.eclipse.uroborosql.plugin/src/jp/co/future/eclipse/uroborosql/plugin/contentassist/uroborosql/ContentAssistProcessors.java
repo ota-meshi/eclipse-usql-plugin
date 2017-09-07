@@ -9,7 +9,6 @@ import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.IType;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.MCommentTypes;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.type.StatementTypes;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.DocumentPoint;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPointCompletionProposal;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.TokenType;
@@ -19,10 +18,9 @@ public enum ContentAssistProcessors {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken, boolean lazy,
 				PluginConfig config) {
-			DocumentPoint commentStart = userOffsetToken.toDocumentPoint();
 			List<IPointCompletionProposal> result = new ArrayList<>();
 			for (IType assistType : MCommentTypes.TYPES) {
-				result.addAll(assistType.computeCompletionProposals(commentStart, lazy, config));
+				result.addAll(assistType.computeCompletionProposals(userOffsetToken, lazy, config));
 			}
 			return result;
 		}
@@ -36,9 +34,9 @@ public enum ContentAssistProcessors {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
 				boolean lazy, PluginConfig config) {
-			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken, this);
+			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken);
 			if (tokenTypes.isPresent()) {
-				return tokenTypes.get().computeCompletionProposals(userOffsetToken.toDocumentPoint(), lazy, config);
+				return tokenTypes.get().computeCompletionProposals(userOffsetToken, lazy, config);
 			}
 
 			return Collections.emptyList();
@@ -53,9 +51,26 @@ public enum ContentAssistProcessors {
 		@Override
 		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
 				boolean lazy, PluginConfig config) {
-			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken, this);
+			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken);
 			if (tokenTypes.isPresent()) {
-				return tokenTypes.get().computeCompletionProposals(userOffsetToken.toDocumentPoint(), lazy, config);
+				return tokenTypes.get().computeCompletionProposals(userOffsetToken, lazy, config);
+			}
+
+			return Collections.emptyList();
+		}
+
+		@Override
+		public boolean possibilityLazy(Token userOffsetToken) {
+			return false;
+		}
+	},
+	PERIOD {
+		@Override
+		public List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
+				boolean lazy, PluginConfig config) {
+			Optional<StatementTypes> tokenTypes = StatementTypes.within(userOffsetToken);
+			if (tokenTypes.isPresent()) {
+				return tokenTypes.get().computeCompletionProposals(userOffsetToken, lazy, config);
 			}
 
 			return Collections.emptyList();
@@ -80,6 +95,7 @@ public enum ContentAssistProcessors {
 		}
 
 	};
+
 	public abstract List<IPointCompletionProposal> computeCompletionProposals(Token userOffsetToken,
 			boolean lazy, PluginConfig config);
 
@@ -91,6 +107,8 @@ public enum ContentAssistProcessors {
 		} else if (token.getType() == TokenType.SQL_TOKEN) {
 			return ContentAssistProcessors.TOKEN;
 		} else if (token.getType() == TokenType.WHITESPACE) {
+			return ContentAssistProcessors.WHITESPACE;
+		} else if (Token.isPeriod(token)) {
 			return ContentAssistProcessors.WHITESPACE;
 		}
 		return ContentAssistProcessors.NONE;

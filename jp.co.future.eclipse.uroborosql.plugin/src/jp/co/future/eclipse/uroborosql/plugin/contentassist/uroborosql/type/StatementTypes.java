@@ -4,18 +4,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import jp.co.future.eclipse.uroborosql.plugin.config.PluginConfig;
-import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.ContentAssistProcessors;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.Column;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.IIdentifier;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.uroborosql.data.identifiers.IIdentifier.IdentifierReplacement;
@@ -39,85 +36,174 @@ import jp.co.future.eclipse.uroborosql.plugin.utils.collection.Iterators;
 public enum StatementTypes implements IType {
 	SELECT {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
-			//カラムエイリアス有
-			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
-			if (aliasTable.isPresent()) {
-				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy,
-						new IdentifierReplacement<Column>(
-								col -> col.buildSelectColumn(0, tokenStart.getReservedCaseFormatter()).toString(),
-								col -> col.buildSelectColumn(0, tokenStart.getReservedCaseFormatter())));
-			}
-
 			List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
-			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+			boolean soonNext = Iterators.asIteratorFromNext(token, Token::getPrevToken).stream()
 					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
 			if (soonNext) {
 				buildTables.add(new IdentifierReplacement<>(table -> "(SEL)" + table, table -> {
-					return table.buildSelectSql(tokenStart.getReservedCaseFormatter());
+					return table.buildSelectSql(token.getDocument().getReservedCaseFormatter());
 				}));
 			}
 
-			return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
+			return getTableCompletionProposals(token.toDocumentPoint(), lazy, config, buildTables);
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, token.toDocumentPoint(), lazy,
+					createColumnIdentifierReplacement(token.getDocument()));
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+
+			return getColumnCompletionProposals(table, point, lazy,
+					createColumnIdentifierReplacement(point.getDocument()));
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		private IdentifierReplacement<Column> createColumnIdentifierReplacement(Document document) {
+			return new IdentifierReplacement<>(
+					col -> col.buildSelectColumn(0, document.getReservedCaseFormatter()).toString(),
+					col -> col.buildSelectColumn(0, document.getReservedCaseFormatter()));
 		}
 
 	},
 	FROM {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
-			return getTableCompletionProposals(tokenStart, lazy, config);
+			return getTableCompletionProposals(token.toDocumentPoint(), lazy, config);
 		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
 	},
 	WHERE {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
-			//カラムエイリアス有
-			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
-			if (aliasTable.isPresent()) {
-				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
-						col -> col.buildConditionColumn(0).toString(), col -> col.buildConditionColumn(0)));
-			}
 			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, token.toDocumentPoint(), lazy,
+					createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, point, lazy, createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		private IdentifierReplacement<Column> createColumnIdentifierReplacement() {
+			return new IdentifierReplacement<>(
+					col -> col.buildConditionColumn(0).toString(), col -> col.buildConditionColumn(0));
 		}
 	},
 	UPDATE {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
 			List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
-			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+			boolean soonNext = Iterators.asIteratorFromNext(token, Token::getPrevToken).stream()
 					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
 			if (soonNext) {
 				buildTables.add(new IdentifierReplacement<>(table -> "(UPD)" + table, table -> {
-					return table.buildUpdateSql(tokenStart.getReservedCaseFormatter());
+					return table.buildUpdateSql(token.getDocument().getReservedCaseFormatter());
 				}));
 			}
 
-			return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
+			return getTableCompletionProposals(token.toDocumentPoint(), lazy, config, buildTables);
 		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
 	},
 	UPDATE_SET {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
-			//カラムエイリアス有
-			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
-			if (aliasTable.isPresent()) {
-				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
-						col -> col.buildSetColumn(0).toString(), col -> col.buildSetColumn(0)));
-			}
-
 			//エイリアスなしのカラム
-			Optional<Table> updateTable = getUpdateTable(tokenStart, config);
+			Optional<Table> updateTable = getUpdateTable(token, config);
 			if (updateTable.isPresent()) {
-				return getColumnCompletionProposals(updateTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
-						col -> col.buildSetColumn(0).toString(), col -> col.buildSetColumn(0)));
+				return computeColumnCompletionProposals(updateTable.get(), token, lazy, config);
 			}
 
 			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, token.toDocumentPoint(), lazy,
+					createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, point, lazy, createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		private IdentifierReplacement<Column> createColumnIdentifierReplacement() {
+			return new IdentifierReplacement<>(col -> col.buildSetColumn(0).toString(), col -> col.buildSetColumn(0));
 		}
 
 		@Override
@@ -128,8 +214,8 @@ public enum StatementTypes implements IType {
 			return Token.getPrevSiblings(token).filter(p -> Token.isUpdateWord(p)).findFirst().isPresent();
 		}
 
-		private Optional<Table> getUpdateTable(DocumentPoint tokenStart, PluginConfig config) {
-			for (Token setToken : Token.getPrevSiblingOrParents(tokenStart.getToken())
+		private Optional<Table> getUpdateTable(Token token, PluginConfig config) {
+			for (Token setToken : Token.getPrevSiblingOrParents(token)
 					.filter(p -> Token.isSetWord(p))) {
 				Token updToken = Token.getPrevSiblings(setToken).filter(p -> Token.isUpdateWord(p)).findFirst()
 						.orElse(null);
@@ -149,42 +235,59 @@ public enum StatementTypes implements IType {
 	},
 	INSERT_INTO {
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
-			//カラムエイリアス有
-			Optional<Table> aliasTable = getColumnAtTable(tokenStart, config);
-			if (aliasTable.isPresent()) {
-				return getColumnCompletionProposals(aliasTable.get(), tokenStart, lazy);
-			}
 
-			boolean soonNext = Iterators.asIteratorFromNext(tokenStart.getToken(), Token::getPrevToken).stream()
+			boolean soonNext = Iterators.asIteratorFromNext(token, Token::getPrevToken).stream()
 					.filter(t -> t.getType().isSqlEnable()).findFirst().filter(t -> isToken(t)).isPresent();
 			if (soonNext) {
 				List<IdentifierReplacement<Table>> buildTables = new ArrayList<>();
 				buildTables.add(new IdentifierReplacement<>(table -> "(INS)" + table, table -> {
 					return table.buildInsertSql();
 				}));
-				return getTableCompletionProposals(tokenStart, lazy, config, buildTables);
+				return getTableCompletionProposals(token.toDocumentPoint(), lazy, config, buildTables);
 			}
 
 			List<IPointCompletionProposal> result = new ArrayList<>();
 			//エイリアスなしのカラム
-			Optional<Table> insertTable = getInsertTable(tokenStart, config);
+			Optional<Table> insertTable = getInsertTable(token, config);
 			if (insertTable.isPresent()) {
-				result.addAll(
-						getColumnCompletionProposals(insertTable.get(), tokenStart, lazy, new IdentifierReplacement<>(
-								col -> col.buildInsertColumn(0).toString(), col -> col.buildInsertColumn(0))));
+				result.addAll(computeColumnCompletionProposals(insertTable.get(), token, lazy, config));
 			}
 
 			//VALUES
-			TokenRange insColsParenthesis = findInsertParenthesis(tokenStart.getToken()).orElse(null);
+			TokenRange insColsParenthesis = findInsertParenthesis(token).orElse(null);
 			if (insColsParenthesis != null) {
-				result.addAll(getValuesCompletionProposals(tokenStart, lazy, insColsParenthesis));
+				result.addAll(getValuesCompletionProposals(token, lazy, insColsParenthesis));
 			}
 
 			//テーブル
-			result.addAll(getTableCompletionProposals(tokenStart, lazy, config));
+			result.addAll(getTableCompletionProposals(token.toDocumentPoint(), lazy, config));
 			return result;
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, token.toDocumentPoint(), lazy,
+					createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return getColumnCompletionProposals(table, point, lazy, createColumnIdentifierReplacement());
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		private IdentifierReplacement<Column> createColumnIdentifierReplacement() {
+			return new IdentifierReplacement<>(
+					col -> col.buildInsertColumn(0).toString(), col -> col.buildInsertColumn(0));
 		}
 
 		@Override
@@ -196,8 +299,8 @@ public enum StatementTypes implements IType {
 					.filter(p -> Token.isInsertWord(p)).isPresent();
 		}
 
-		private Optional<Table> getInsertTable(DocumentPoint tokenStart, PluginConfig config) {
-			for (Token intoToken : Token.getPrevSiblingOrParents(tokenStart.getToken())
+		private Optional<Table> getInsertTable(Token token, PluginConfig config) {
+			for (Token intoToken : Token.getPrevSiblingOrParents(token)
 					.filter(p -> Token.isIntoWord(p))) {
 				boolean isInsert = Token.getPrevSiblings(intoToken).filter(p -> Token.isInsertWord(p)).findFirst()
 						.isPresent();
@@ -215,14 +318,16 @@ public enum StatementTypes implements IType {
 			return Optional.empty();
 		}
 
-		private List<IPointCompletionProposal> getValuesCompletionProposals(DocumentPoint tokenStart,
+		private List<IPointCompletionProposal> getValuesCompletionProposals(Token token,
 				@SuppressWarnings("unused") boolean lazy, TokenRange insColsParenthesis) {
 
 			IPartContentAssistProcessor processor = new TextContentAssistProcessor("VALUES",
-					() -> new Replacement(buildValues(insColsParenthesis, tokenStart.getReservedCaseFormatter()),
+					() -> new Replacement(
+							buildValues(insColsParenthesis, token.getDocument().getReservedCaseFormatter()),
 							false),
 					"VALUES(...)", () -> "insert values");
 
+			DocumentPoint tokenStart = token.toDocumentPoint();
 			List<IPointCompletionProposal> result = new ArrayList<>();
 			processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
 			return result;
@@ -234,13 +339,9 @@ public enum StatementTypes implements IType {
 			result.add(reservedCaseFormatter.apply("Values") + " (");
 
 			List<Pair<Token, Token>> ids = Token.getInParenthesis(insColsParenthesis.getStart())
-					.map(range -> findInsertidentifier(range).orElse(null))
-					.collect(Collectors.toList());
-			int maxWidths = ids.stream()
-					.filter(Objects::nonNull)
-					.map(id -> buildValuesValueBind(id.getE1()))
-					.mapToInt(s -> Strings.widths(s))
-					.max().orElse(0);
+					.map(range -> findInsertidentifier(range).orElse(null)).collect(Collectors.toList());
+			int maxWidths = ids.stream().filter(Objects::nonNull).map(id -> buildValuesValueBind(id.getE1()))
+					.mapToInt(s -> Strings.widths(s)).max().orElse(0);
 
 			boolean first = true;
 			for (Pair<Token, Token> id : ids) {
@@ -255,7 +356,7 @@ public enum StatementTypes implements IType {
 			return result;
 		}
 	},
-	VALUES(ContentAssistProcessors.TOKEN, ContentAssistProcessors.WHITESPACE) {
+	VALUES {
 		final class ValuesTokenSet {
 			@SuppressWarnings("unused")
 			private final Token valuesToken;
@@ -270,25 +371,36 @@ public enum StatementTypes implements IType {
 		}
 
 		@Override
-		public List<IPointCompletionProposal> computeCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+		protected List<IPointCompletionProposal> computeTokenCompletionProposals(Token token, boolean lazy,
 				PluginConfig config) {
+			return Collections.emptyList();
+		}
 
-			if (tokenStart.getToken().getType() == TokenType.WHITESPACE) {
-				Optional<ValuesTokenSet> valuesTokenSet = getValuesTokenSet(tokenStart);
-				if (valuesTokenSet.isPresent()) {
-					Pair<Token, Token> pairToken = calcPairToken(valuesTokenSet.get(), tokenStart.getToken())
-							.orElse(null);
-					if (pairToken != null) {
-						String s = buildValuesValueText(pairToken, 0);
-						return Arrays.asList(new CompletionProposal(
-								new DocReplacement(s, tokenStart.getDocument().getUserOffset(), 0, OptionalInt.empty(),
-										false),
-								s,
-								"insert pair [" + pairToken.getE1().getString() + "]"));
-					}
+		@Override
+		protected List<IPointCompletionProposal> computeColumnCompletionProposals(Table table, Token token,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table, DocumentPoint point,
+				boolean lazy, PluginConfig config) {
+			return Collections.emptyList();
+		}
+
+		@Override
+		protected List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+				boolean lazy, PluginConfig config) {
+			Optional<ValuesTokenSet> valuesTokenSet = getValuesTokenSet(token);
+			if (valuesTokenSet.isPresent()) {
+				Pair<Token, Token> pairToken = calcPairToken(valuesTokenSet.get(), token).orElse(null);
+				if (pairToken != null) {
+					String s = buildValuesValueText(pairToken, 0);
+					return Arrays.asList(new CompletionProposal(
+							new DocReplacement(s, token.getDocument().getUserOffset(), 0, OptionalInt.empty(), false),
+							s, "insert pair [" + pairToken.getE1().getString() + "]"));
 				}
 			}
-
 			return Collections.emptyList();
 		}
 
@@ -337,8 +449,8 @@ public enum StatementTypes implements IType {
 			return Optional.empty();
 		}
 
-		private Optional<ValuesTokenSet> getValuesTokenSet(DocumentPoint tokenStart) {
-			Token valuesToken = findValuesToken(tokenStart.getToken()).orElse(null);
+		private Optional<ValuesTokenSet> getValuesTokenSet(Token token) {
+			Token valuesToken = findValuesToken(token).orElse(null);
 			if (valuesToken == null) {
 				return Optional.empty();
 			}
@@ -359,16 +471,6 @@ public enum StatementTypes implements IType {
 
 	},
 	;
-
-	private final Set<ContentAssistProcessors> targetsContentAssistProcessors;
-
-	StatementTypes(ContentAssistProcessors... targets) {
-		if (targets.length == 0) {
-			targetsContentAssistProcessors = EnumSet.of(ContentAssistProcessors.TOKEN);
-		} else {
-			targetsContentAssistProcessors = EnumSet.copyOf(Arrays.asList(targets));
-		}
-	}
 
 	protected Optional<Pair<Token, Token>> findInsertidentifier(TokenRange range) {
 		FluentList<Token> tokens = range.getBetweenTokens();
@@ -393,11 +495,11 @@ public enum StatementTypes implements IType {
 
 	}
 
-	public static Optional<StatementTypes> within(Token token, ContentAssistProcessors contentAssistProcessors) {
+	public static Optional<StatementTypes> within(Token token) {
 		for (Token prev : Token.getPrevSiblingOrParents(token)
 				.filter(p -> p.getType() == TokenType.SQL_TOKEN)) {
 			for (StatementTypes type : StatementTypes.values()) {
-				if (type.targetsContentAssistProcessors.contains(contentAssistProcessors) && type.isToken(prev)) {
+				if (type.isToken(prev)) {
 					return Optional.of(type);
 				}
 			}
@@ -405,64 +507,99 @@ public enum StatementTypes implements IType {
 		return Optional.empty();
 	}
 
+	@Override
+	public final List<IPointCompletionProposal> computeCompletionProposals(Token token, boolean lazy,
+			PluginConfig config) {
+		if (token.getType() == TokenType.WHITESPACE) {
+			return computeWhitespaceCompletionProposals(token, lazy, config);
+		}
+
+		if (Token.isPeriod(token)) {
+			//カラムエイリアス有
+			Optional<Table> aliasTable = getColumnAtTable(token, config);
+			if (aliasTable.isPresent()) {
+				return computeAllColumnCompletionProposals(aliasTable.get(),
+						token.getDocument().getUserOffsetDocumentPoint(), lazy, config);
+			}
+		}
+
+		//カラムエイリアス有
+		Optional<Table> aliasTable = getColumnAtTable(token, config);
+		if (aliasTable.isPresent()) {
+			return computeColumnCompletionProposals(aliasTable.get(), token, lazy, config);
+		}
+
+		return computeTokenCompletionProposals(token, lazy, config);
+	}
+
+	protected abstract List<IPointCompletionProposal> computeTokenCompletionProposals(Token token,
+			boolean lazy,
+			PluginConfig config);
+
+	protected abstract List<IPointCompletionProposal> computeColumnCompletionProposals(Table table,
+			Token token, boolean lazy, PluginConfig config);
+
+	protected abstract List<IPointCompletionProposal> computeAllColumnCompletionProposals(Table table,
+			DocumentPoint point,
+			boolean lazy, PluginConfig config);
+
+	protected abstract List<IPointCompletionProposal> computeWhitespaceCompletionProposals(Token token,
+			boolean lazy,
+			PluginConfig config);
+
 	protected boolean isToken(Token token) {
 		return token.getString().equalsIgnoreCase(name());
 	}
 
-	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint tokenStart, boolean lazy,
+	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint point, boolean lazy,
 			PluginConfig config) {
-		return getTableCompletionProposals(tokenStart, lazy, config, Collections.emptyList());
+		return getTableCompletionProposals(point, lazy, config, Collections.emptyList());
 	}
 
-	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint tokenStart, boolean lazy,
-			PluginConfig config, List<IdentifierReplacement<Table>> origBuildReplacements) {
-		List<IdentifierReplacement<Table>> buildReplacements = new ArrayList<>(origBuildReplacements);
-		buildReplacements.add(new IdentifierReplacement<>(IIdentifier::toReplacement));
-		String text = tokenStart.getRangeText();
-		Collection<Table> tables = config.getTables(text, lazy);
-		List<IPointCompletionProposal> result = new ArrayList<>();
-		for (Table table : tables) {
-			for (IPartContentAssistProcessor processor : lazy
-					? table.createLazyContentAssistProcessor(buildReplacements)
-					: table.createContentAssistProcessor(buildReplacements)) {
-				processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
-			}
-		}
-		return result;
-	}
-
-	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint point,
 			boolean lazy) {
-		return getColumnCompletionProposals(table, tokenStart, lazy, Collections.emptyList());
+		return getColumnCompletionProposals(table, point, lazy, Collections.emptyList());
 	}
 
 	@SafeVarargs
-	protected final List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+	protected final List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint point,
 			boolean lazy, IdentifierReplacement<Column>... buildReplacements) {
-		return getColumnCompletionProposals(table, tokenStart, lazy, Arrays.asList(buildReplacements));
+		return getColumnCompletionProposals(table, point, lazy, Arrays.asList(buildReplacements));
 	}
 
-	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint tokenStart,
+	protected List<IPointCompletionProposal> getTableCompletionProposals(DocumentPoint point, boolean lazy,
+			PluginConfig config, List<IdentifierReplacement<Table>> origBuildReplacements) {
+		String text = point.getRangeText();
+		return getIdentifiersCompletionProposals(config.getTables(text, lazy), point, lazy, origBuildReplacements);
+	}
+
+	protected List<IPointCompletionProposal> getColumnCompletionProposals(Table table, DocumentPoint point,
 			boolean lazy, List<IdentifierReplacement<Column>> origBuildReplacements) {
-		List<IdentifierReplacement<Column>> buildReplacements = new ArrayList<>(origBuildReplacements);
+		return getIdentifiersCompletionProposals(table.getColumns(), point, lazy, origBuildReplacements);
+	}
+
+	private <I extends IIdentifier<I>> List<IPointCompletionProposal> getIdentifiersCompletionProposals(
+			Collection<I> identifiers, DocumentPoint point,
+			boolean lazy, List<IdentifierReplacement<I>> origBuildReplacements) {
+		List<IdentifierReplacement<I>> buildReplacements = new ArrayList<>(origBuildReplacements);
 		buildReplacements.add(new IdentifierReplacement<>(IIdentifier::toReplacement));
 		List<IPointCompletionProposal> result = new ArrayList<>();
-		for (Column column : table.getColumns()) {
+		for (I identifier : identifiers) {
 			for (IPartContentAssistProcessor processor : lazy
-					? column.createLazyContentAssistProcessor(buildReplacements)
-					: column.createContentAssistProcessor(buildReplacements)) {
-				processor.computeCompletionProposal(tokenStart).ifPresent(result::add);
+					? identifier.createLazyContentAssistProcessor(buildReplacements)
+					: identifier.createContentAssistProcessor(buildReplacements)) {
+				processor.computeCompletionProposal(point).ifPresent(result::add);
 			}
 		}
 		return result;
 	}
 
-	protected Optional<Table> getColumnAtTable(DocumentPoint tokenStart, PluginConfig config) {
-		Optional<String> name = getAtName(tokenStart);
+	private Optional<Table> getColumnAtTable(Token token, PluginConfig config) {
+		Optional<String> name = getAtName(token);
 		if (!name.isPresent()) {
 			return Optional.empty();
 		}
-		return findAliasTable(tokenStart.getDocument(), name.get(), config);
+		return findAliasTable(token.getDocument(), name.get(), config);
 	}
 
 	protected Optional<Table> getTable(PluginConfig config, String tableName) {
@@ -515,18 +652,18 @@ public enum StatementTypes implements IType {
 		return s;
 	}
 
-	private Optional<String> getAtName(DocumentPoint tokenStart) {
-
-		Token token = tokenStart.getToken();
-
+	private Optional<String> getAtName(Token token) {
 		Iterator<Token> prevs = Iterators.asIteratorFromNext(token, Token::getPrevToken)
 				.filter(t -> t.getType().isSqlEnable());
 		if (!prevs.hasNext()) {
 			return Optional.empty();
 		}
-		Token dot = prevs.next();
-		if (dot.getType() != TokenType.SYMBOL || !dot.getString().equals(".")) {
-			return Optional.empty();
+
+		if (!Token.isPeriod(token)) {
+			Token period = prevs.next();
+			if (!Token.isPeriod(period)) {
+				return Optional.empty();
+			}
 		}
 		if (!prevs.hasNext()) {
 			return Optional.empty();

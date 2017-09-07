@@ -48,6 +48,10 @@ public class Token {
 		return new DocumentPoint(document, getStart());
 	}
 
+	public Document getDocument() {
+		return document;
+	}
+
 	public String getString() {
 		return string != null ? string : (string = document.substring(getStart(), end + 1));
 	}
@@ -316,4 +320,9 @@ public class Token {
 	public static boolean isComma(Token token) {
 		return token.getType() == TokenType.SYMBOL && token.getString().equals(",");
 	}
+
+	public static boolean isPeriod(Token token) {
+		return token.getType() == TokenType.SYMBOL && token.getString().equals(".");
+	}
+
 }

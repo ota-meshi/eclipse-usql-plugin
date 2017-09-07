@@ -120,8 +120,17 @@ public enum TokenType {
 	SYMBOL {
 		@Override
 		public void scanEnd(DocumentScanner scanner) {
+			char c = scanner.current();
+			//single symbols
+			if (c == '.'
+					|| c == ','
+					|| c == ')'
+					|| c == '(') {
+				return;
+			}
+
 			while (scanner.hasNext()) {
-				char c = scanner.next();
+				c = scanner.next();
 				if (!isSymbol(c)
 						//string
 						|| c == '\'' || c == '"' ||

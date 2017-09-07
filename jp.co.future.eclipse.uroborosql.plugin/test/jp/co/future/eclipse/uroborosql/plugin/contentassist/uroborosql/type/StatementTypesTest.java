@@ -63,7 +63,7 @@ public class StatementTypesTest {
 	}
 
 	@Test
-	public void testSelectCols() {
+	public void testSelectCols01() {
 
 		List<String> result = computeCompletionResults("select m.E| from M_MENU m", config);
 		result.forEach(System.out::println);
@@ -81,6 +81,25 @@ public class StatementTypesTest {
 				"select m.EX_CODE5\tas\t|EX_CODE5 from M_MENU m",
 				"select m.E_MAIL| from M_MENU m",
 				"select m.E_MAIL\t\tas\t|E_MAIL from M_MENU m"
+
+		)));
+	}
+
+	@Test
+	public void testSelectCols02() {
+
+		List<String> result = computeCompletionResults("select u.| from M_USER u", config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"select u.E_MAIL\t\tas\t|E_MAIL\t\t-- e-mail addr\n from M_USER u",
+				"select u.E_MAIL|\t-- e-mail addr\n from M_USER u",
+				"select u.F_NAME\t\tas\t|F_NAME\t\t-- user first name\n from M_USER u",
+				"select u.F_NAME|\t-- user first name\n from M_USER u",
+				"select u.ID\t\tas\t|ID\t\t-- user id\n from M_USER u",
+				"select u.ID|\t-- user id\n from M_USER u",
+				"select u.L_NAME\t\tas\t|L_NAME\t\t-- user last name\n from M_USER u",
+				"select u.L_NAME|\t-- user last name\n from M_USER u"
 
 		)));
 	}
