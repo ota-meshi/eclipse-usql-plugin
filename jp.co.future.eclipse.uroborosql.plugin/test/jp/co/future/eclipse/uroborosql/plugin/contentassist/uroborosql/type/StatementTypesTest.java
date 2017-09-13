@@ -415,6 +415,19 @@ public class StatementTypesTest {
 		)));
 	}
 
+	@Test
+	public void testInsertValuesToken04() {
+
+		List<String> result = computeCompletionResults("insert into M_USER (ID\t-- ID\n, CAPTION\t-- キャプション\n) values",
+				config);
+		result.forEach(System.out::println);
+
+		assertThat(result, is(Arrays.asList(
+				"insert into M_USER (ID\t-- ID\n, CAPTION\t-- キャプション\n) values (\n\t/*id*/''\t\t\t-- ID\n,\t/*caption*/''\t\t-- キャプション\n)|"
+
+		)));
+	}
+
 	private static XmlConfig config() throws IOException, ParserConfigurationException, SAXException {
 		XmlConfig config = new XmlConfig(xml().getBytes(StandardCharsets.UTF_8), null);
 

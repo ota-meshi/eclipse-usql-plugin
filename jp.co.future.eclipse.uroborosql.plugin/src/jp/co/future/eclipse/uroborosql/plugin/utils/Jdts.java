@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -36,7 +37,8 @@ import org.eclipse.jdt.ui.JavadocContentAccess;
 
 public class Jdts {
 	public static String getJavadocHtml(Method method) {
-		return getMethodJavadocHtml(method.getDeclaringClass().getName(), method.getName(), method.getParameterCount());
+		return getMethodJavadocHtml(method.getDeclaringClass().getName(), method.getName(),
+				method.getParameterCount());
 	}
 
 	public static String getJavadocHtml(Field field) {
@@ -73,7 +75,8 @@ public class Jdts {
 			for (IMethod m : type.getMethods()) {
 
 				//TODO シグニチャ見る対応
-				if (m.getElementName().equals(methodname)
+				if (Modifier.isPublic(m.getFlags())
+						&& m.getElementName().equals(methodname)
 						&& m.getNumberOfParameters() == paramCount) {
 					list.add(m);
 				}
@@ -87,6 +90,7 @@ public class Jdts {
 	}
 
 	public static String[] getMethodtParameterNames(String className, String methodname, int paramCount) {
+
 		try {
 			IType type = Eclipses.findType(className);
 
@@ -94,7 +98,11 @@ public class Jdts {
 			for (IMethod m : type.getMethods()) {
 
 				//TODO シグニチャ見る対応
-				if (m.getElementName().equals(methodname)
+				//				Signature.getSignatureSimpleName(name)
+				//				Signature.getSignatureQualifier(typeSignature)
+				//				m.getParameterTypes()
+				if (Modifier.isPublic(m.getFlags())
+						&& m.getElementName().equals(methodname)
 						&& m.getNumberOfParameters() == paramCount) {
 					list.add(m);
 				}

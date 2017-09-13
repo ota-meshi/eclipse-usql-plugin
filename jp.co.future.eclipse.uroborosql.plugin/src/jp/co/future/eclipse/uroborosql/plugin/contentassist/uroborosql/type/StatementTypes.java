@@ -23,6 +23,7 @@ import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.C
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.CompletionProposal.DocReplacement;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPartContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.IPointCompletionProposal;
+import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.LazySearchContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.Replacement;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.contentassist.TextContentAssistProcessor;
 import jp.co.future.eclipse.uroborosql.plugin.contentassist.util.parser.Token;
@@ -321,11 +322,20 @@ public enum StatementTypes implements IType {
 		private List<IPointCompletionProposal> getValuesCompletionProposals(Token token,
 				@SuppressWarnings("unused") boolean lazy, TokenRange insColsParenthesis) {
 
-			IPartContentAssistProcessor processor = new TextContentAssistProcessor("VALUES",
-					() -> new Replacement(
-							buildValues(insColsParenthesis, token.getDocument().getReservedCaseFormatter()),
-							false),
-					"VALUES(...)", () -> "insert values");
+			Function<String, String> reservedCaseFormatter = token.getDocument().getReservedCaseFormatter();
+			String valuesToken = reservedCaseFormatter.apply("Values");
+
+			IPartContentAssistProcessor processor = lazy
+					? new LazySearchContentAssistProcessor(valuesToken, Arrays.asList(valuesToken),
+							() -> new Replacement(
+									buildValues(insColsParenthesis, reservedCaseFormatter),
+									false),
+							valuesToken + "(...)", () -> "insert values")
+					: new TextContentAssistProcessor(valuesToken,
+							() -> new Replacement(
+									buildValues(insColsParenthesis, reservedCaseFormatter),
+									false),
+							valuesToken + "(...)", () -> "insert values");
 
 			DocumentPoint tokenStart = token.toDocumentPoint();
 			List<IPointCompletionProposal> result = new ArrayList<>();
