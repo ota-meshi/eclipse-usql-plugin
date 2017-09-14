@@ -12,10 +12,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -131,6 +133,13 @@ public class XmlConfig implements PluginConfig {
 				if (selects.isEmpty()) {
 					return new Columns();
 				}
+				Map<String, Map<Integer, String>> dbMap = new HashMap<>();
+				for (int i = 0; i < selects.size(); i++) {
+					AttributableValue select = selects.get(i);
+					String db = select.attr("db").orElse("");
+					dbMap.computeIfAbsent(db, k -> new HashMap<>()).put(i, select.value());
+				}
+
 				Columns result = new Columns();
 				eachSql(selects, (conn, sel, priority) -> {
 					try {
@@ -139,7 +148,6 @@ public class XmlConfig implements PluginConfig {
 						UroboroSQLPlugin.printConsole(e);
 					}
 					return null;
-
 				});
 				return result;
 			});
@@ -256,6 +264,12 @@ public class XmlConfig implements PluginConfig {
 			return new Variables();
 		}
 
+		Map<String, Set<String>> dbMap = new HashMap<>();
+		for (AttributableValue select : selects) {
+			String db = select.attr("db").orElse("");
+			dbMap.computeIfAbsent(db, k -> new HashSet<>()).add(select.value());
+		}
+
 		Variables variables = new Variables();
 		eachSql(selects, (conn, sel, priority) -> {
 			try {
@@ -264,7 +278,6 @@ public class XmlConfig implements PluginConfig {
 				UroboroSQLPlugin.printConsole(e);
 			}
 			return null;
-
 		});
 
 		return variables;
