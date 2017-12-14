@@ -350,8 +350,14 @@ class Internal {
 					}));
 			try (PreferURLClassLoader classLoader = createCustomClassLoader(urls)) {
 				Class<Executor> executorType = classLoader.defineAndLoadClass(UroboroSQLExecutor.class);
-				Executor executor = executorType.getConstructor().newInstance();
-				return executor.execute(conn, sql, params, fn);
+				ClassLoader cl = Thread.currentThread().getContextClassLoader();
+				try {
+					Thread.currentThread().setContextClassLoader(classLoader);
+					Executor executor = executorType.getConstructor().newInstance();
+					return executor.execute(conn, sql, params, fn);
+				} finally {
+					Thread.currentThread().setContextClassLoader(cl);
+				}
 			}
 		} catch (SQLException e) {
 			throw e;
