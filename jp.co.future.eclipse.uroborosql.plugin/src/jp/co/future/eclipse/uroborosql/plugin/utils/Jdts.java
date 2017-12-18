@@ -6,10 +6,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -19,9 +22,13 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
+import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.jdt.core.IBuffer;
 import org.eclipse.jdt.core.IClassFile;
+import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
@@ -191,6 +198,16 @@ public class Jdts {
 		if (javaProject == null) {
 			return Optional.empty();
 		}
+		return getURLFromJavaProject(javaProject, className);
+	}
+
+	public static Optional<URL> getURLFromJavaProject(IJavaProject javaProject, String className) {
+		if (className == null) {
+			return Optional.empty();
+		}
+		if (javaProject == null) {
+			return Optional.empty();
+		}
 		try {
 
 			IType type = javaProject.findType(className);
@@ -296,6 +313,65 @@ public class Jdts {
 					}
 					return null;
 				}).orElse(null);
+	}
+
+	public static Optional<String> getEnumToString(IType targetClass, IField value) {
+		String className = getName(targetClass);
+		IJavaProject javaProject = targetClass.getJavaProject();
+
+		Set<URL> urls = new LinkedHashSet<>();
+		Optional<URL> ext = getURLFromJavaProject(javaProject, className);
+		if (ext.isPresent()) {
+			urls.add(ext.get());
+		} else {
+			IClasspathEntry[] entries;
+			try {
+				entries = javaProject.getRawClasspath();
+			} catch (JavaModelException e) {
+				return Optional.empty();
+			}
+			for (IClasspathEntry ce : entries) {
+
+				IClasspathEntry resoleved = JavaCore.getResolvedClasspathEntry(ce);
+				IPath path = resoleved.getOutputLocation();
+				if (path == null) {
+					continue;
+				}
+				IFile file = ResourcesPlugin.getWorkspace().getRoot().getFile(path);
+
+				URI uri = file.getLocationURI();
+
+				try {
+					URL url = uri.toURL();
+					urls.add(toDir(url));
+				} catch (MalformedURLException e) {
+				}
+			}
+		}
+
+		try (URLClassLoader classLoader = new PreferURLClassLoader(urls.toArray(new URL[urls.size()]))) {
+			ClassLoader cl = Thread.currentThread().getContextClassLoader();
+			try {
+				Thread.currentThread().setContextClassLoader(classLoader);
+
+				@SuppressWarnings("rawtypes")
+				Class c = classLoader.loadClass(className);
+				@SuppressWarnings("unchecked")
+				Enum<?> val = Enum.valueOf(c, value.getElementName()/*enum name*/);
+				return Optional.ofNullable(val.toString());
+			} finally {
+				Thread.currentThread().setContextClassLoader(cl);
+			}
+		} catch (Exception e) {
+			return Optional.empty();
+		}
+	}
+
+	private static URL toDir(URL url) throws MalformedURLException {
+		if (url.toString().endsWith("/")) {
+			return url;
+		}
+		return new URL(url.toString() + "/");
 	}
 
 }

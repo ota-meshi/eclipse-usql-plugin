@@ -220,7 +220,9 @@ public class SqlContextFactoryImpl {
 		for (IField value : enumValues) {
 			String fieldName = constParamPrefix + fieldPrefix + value.getElementName().toUpperCase();
 			fieldName = fieldName.toUpperCase();
-			paramMap.put(new Const(fieldName, VariableValue.of(value.getElementName()/*enum name*/),
+			paramMap.put(new Const(fieldName,
+					VariableValue
+							.of(Jdts.getEnumToString(targetClass, value).orElse(value.getElementName()/*enum name*/)),
 					() -> Jdts.getJavadocHtml(value)));
 		}
 	}

@@ -3,5 +3,5 @@
    <description name="Eclipse uroboroSQL Plugin">
       Plug-in for developers using uroboroSQL
    </description>
-   <feature url="features/jp.co.future.eclipse.uroborosql.plugin.feature_1.0.0.201712141220.jar" id="jp.co.future.eclipse.uroborosql.plugin.feature" version="1.0.0.201712141220"/>
+   <feature url="features/jp.co.future.eclipse.uroborosql.plugin.feature_1.0.0.201712181353.jar" id="jp.co.future.eclipse.uroborosql.plugin.feature" version="1.0.0.201712181353"/>
 </site>
